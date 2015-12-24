@@ -330,33 +330,35 @@ class FR_BODACC < Framework::Processor
             end
           end
 
-          subnode = one(node, 'etablissement')
-          if subnode
-            origin = value(subnode, 'origineFonds')
-            establishment_type = value(subnode, 'qualiteEtablissement')
-            activity = value(subnode, 'activite')
-            sign = value(subnode, 'enseigne')
-            address = france_address(subnode, 'adresse')
+          subnodes = node.xpath('./etablissement')
+          establishment = subnodes.map do |subnode|
+            {
+              origin: value(subnode, 'origineFonds'),
+              establishment_type: value(subnode, 'qualiteEtablissement'),
+              activity: value(subnode, 'activite'),
+              sign: value(subnode, 'enseigne'),
+              address: france_address(subnode, 'adresse'),
+            }
           end
 
           # <precedentProprietairePM> <precedentProprietairePP>
-          subnode = one(node, 'precedentProprietairePM')
-          previous_owner = moral_person(subnode)
-          subnode = one(node, 'precedentProprietairePP')
-          if previous_owner
-            warn("expected only one of precedentProprietairePM or precedentProprietairePP")
-          else
-            previous_owner = physical_person(subnode)
+          subnodes = node.xpath('./precedentProprietairePM')
+          previous_owners = subnodes.map do |subnode|
+            moral_person(subnode)
+          end
+          subnodes = node.xpath('./precedentProprietairePP')
+          previous_owners += subnodes.map do |subnode|
+            physical_person(subnode)
           end
 
           # <precedentExploitantPM> <precedentExploitantPP>
-          subnode = one(node, 'precedentExploitantPM')
-          previous_operator = moral_person(subnode)
-          subnode = one(node, 'precedentExploitantPP')
-          if previous_operator
-            warn("expected only one of precedentExploitantPM or precedentExploitantPP")
-          else
-            previous_operator = physical_person(subnode)
+          subnodes = node.xpath('./precedentExploitantPM')
+          previous_operators = subnodes.map do |subnode|
+            moral_person(subnode)
+          end
+          subnodes = node.xpath('./precedentExploitantPP')
+          previous_operators += subnodes.map do |subnode|
+            physical_person(subnode)
           end
 
           # <parutionAvisPrecedent>
@@ -432,7 +434,7 @@ class FR_BODACC < Framework::Processor
     nodes = parent.xpath("./#{path}")
     if nodes.any?
       if nodes.size > 1
-        warn("expected 0..1 #{path} in #{parent.name}")
+        warn("expected 0..1 #{path} in #{parent.name}, got #{nodes.size}")
       end
       nodes[0]
     end
@@ -470,7 +472,7 @@ class FR_BODACC < Framework::Processor
 
       else
         if options[:enum] && !options[:enum].include?(value)
-          warn("expected #{value} in #{options[:enum].join(', ')}")
+          warn("expected #{value.inspect} in #{options[:enum].inspect}")
         end
         value
       end
@@ -540,10 +542,8 @@ class FR_BODACC < Framework::Processor
       }
     elsif parent.at_xpath('./nonInscrit')
       {
-        registered: !value(parent, 'nonInscrit', enum: ['RCS non inscrit. ']),
+        registered: !value(parent, 'nonInscrit', enum: ['RCS non inscrit.']),
       }
-    else
-      warn("expected one of numeroImmatriculation or nonInscrit in precedentExploitantPP")
     end
   end
 
