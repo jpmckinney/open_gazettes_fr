@@ -236,6 +236,8 @@ class FR_BODACC < Framework::Processor
     end
   end
 
+  # @param [DataFile] the file to parse
+  # @param [String] the file's directory
   def parse(file, directory)
     if File.extname(file.name) == '.taz'
       basename = File.basename(file.name)
@@ -292,66 +294,115 @@ class FR_BODACC < Framework::Processor
 
         path = format == 'PCL' ? 'annonces/annonce' : 'listeAvis/avis'
         document.xpath("//#{path}").each do |node|
-          notice_type = node.at_xpath('./typeAnnonce/*').name # "annonce", "rectificatif", "annulation"
-          uid = node.at_xpath('./nojo').text
-          identifier = Integer(node.at_xpath('./numeroAnnonce').text)
-          department_number = node.at_xpath('./numeroDepartement').text
-          tribunal = node.at_xpath('./tribunal').text.gsub("\n", " ")
+          notice_type = one(node, 'typeAnnonce/*').name # "annonce", "rectificatif", "annulation"
+          uid = value(node, 'nojo')
+          identifier = value(node, 'numeroAnnonce', format: :integer)
+          department_number = value(node, 'numeroDepartement')
+          tribunal = value(node, 'tribunal').gsub("\n", " ")
 
-=begin
-          personnes
-          etablissement
-          precedentProprietairePM
-          precedentProprietairePP
-          precedentExploitantPM
-          precedentExploitantPP
-          # The two PM and two PP are formatted the same
-=end
-
-          # <parutionAvisPrecedent>
-          if node.at_xpath('./parutionAvisPrecedent')
-            if !['rectificatif', 'annulation'].include?(notice_type)
-              warn("unexpected parutionAvisPrecedent for typeAnnonce of #{notice_type}")
+          node.xpath('/personnes/personne').each do |personne|
+            subnode = one(personne, 'personneMorale')
+            person = moral_person(subnode)
+            subnode = one(personne, 'personnePhysique')
+            if person
+              warn("expected only one of personneMorale or personnePhysique")
+            else
+              person = physical_person(subnode)
             end
 
-            prior_publication = xpath(node, 'parutionAvisPrecedent/nomPublication', required: true) # e.g. "BODACC A"
-            prior_issue_number = xpath(node, 'parutionAvisPrecedent/numeroParution', required: true)
-            prior_date_published = xpath(node, 'parutionAvisPrecedent/dateParution', required: true, format: :date, pattern: '%e %B %Y')
-            prior_identifier = xpath(node, 'parutionAvisPrecedent/numeroAnnonce', required: true, type: :integer)
+            subnode = one(personne, 'capital')
+            if subnode
+              amount_value = value(subnode, 'montantCapital')
+              currency = value(subnode, 'devise')
+              amount = value(subnode, 'capitalVariable')
+            end
+
+            subnode = one(personne, 'adresse')
+            if subnode
+              address = if subnode.at_xpath('./france')
+                france_address(subnode, 'france')
+              elsif subnode.at_xpath('./etranger')
+                {
+                  address: value(subnode, 'etranger/adresse'),
+                  country_name: value(subnode, 'etranger/pays'),
+                }
+              end
+            end
+          end
+
+          subnode = one(node, 'etablissement')
+          if subnode
+            origin = value(subnode, 'origineFonds')
+            establishment_type = value(subnode, 'qualiteEtablissement')
+            activity = value(subnode, 'activite')
+            sign = value(subnode, 'enseigne')
+            address = france_address(subnode, 'adresse')
+          end
+
+          # <precedentProprietairePM> <precedentProprietairePP>
+          subnode = one(node, 'precedentProprietairePM')
+          previous_owner = moral_person(subnode)
+          subnode = one(node, 'precedentProprietairePP')
+          if previous_owner
+            warn("expected only one of precedentProprietairePM or precedentProprietairePP")
+          else
+            previous_owner = physical_person(subnode)
+          end
+
+          # <precedentExploitantPM> <precedentExploitantPP>
+          subnode = one(node, 'precedentExploitantPM')
+          previous_operator = moral_person(subnode)
+          subnode = one(node, 'precedentExploitantPP')
+          if previous_operator
+            warn("expected only one of precedentExploitantPM or precedentExploitantPP")
+          else
+            previous_operator = physical_person(subnode)
+          end
+
+          # <parutionAvisPrecedent>
+          subnode = one(node, 'parutionAvisPrecedent')
+          if subnode
+            prior_publication = value(subnode, 'nomPublication', required: true, enum: ['BODACC A', 'BODACC B', 'BODACC C'])
+            prior_issue_number = value(subnode, 'numeroParution', required: true)
+            prior_date_published = value(subnode, 'dateParution', required: true, format: :date, pattern: '%e %B %Y')
+            prior_identifier = value(subnode, 'numeroAnnonce', required: true, type: :integer)
           end
 
           # <acte>
-          subnode = node.at_xpath('./acte/*')
+          subnode = one(node, 'acte/*')
           act_type = subnode.name # "creation", "immatriculation", "vente"
-          classification = xpath(subnode, "categorie#{act_type.capitalize}", required: act_type == 'creation') # required by schema, but sometimes missing
-          date_registered = xpath(subnode, 'dateImmatriculation', format: :date)
-          start_date = xpath(subnode, 'dateCommencementActivite', format: :date)
-          description = xpath(subnode, 'descriptif')
+          classification = value(subnode, "categorie#{act_type.capitalize}", required: act_type == 'creation') # required by schema, but sometimes missing
+          date_registered = value(subnode, 'dateImmatriculation', format: :date)
+          start_date = value(subnode, 'dateCommencementActivite', format: :date)
+          description = value(subnode, 'descriptif')
 
           if ['immatriculation', 'vente'].include?(act_type)
-            effective_date = xpath(subnode, 'dateEffet', format: :date, pattern: '%e %B %Y')
+            effective_date = value(subnode, 'dateEffet', format: :date, pattern: '%e %B %Y')
           end
 
           if act_type == 'vente'
             if subnode.at_xpath('./journal')
-              journal_title = xpath(subnode, 'journal/titre', required: true)
-              journal_date = xpath(subnode, 'journal/date', required: true)
+              journal_title = value(subnode, 'journal/titre', required: true)
+              journal_date = value(subnode, 'journal/date', required: true, format: :date)
             end
 
-            opposition = xpath(subnode, 'opposition')
-            debt_declaration = xpath(subnode, 'declarationCreance')
+            opposition = value(subnode, 'opposition')
+            debt_declaration = value(subnode, 'declarationCreance')
           end
         end
 
         # TODO
-        # finish parsing into variables
-        # combine the variables into a hash and output
+        # combine the variables into a hash, exclude nil values, and output
       end
     else
       warn("unexpected file extension #{file.name} in BODACC/#{directory}")
     end
   end
 
+  ### Helpers
+
+  # @param [String] a file path to a compressed file
+  # @return [StringIO] an IO of the uncompressed file
   def uncompress(oldpath)
     # Ruby has no gem or library for LZW decompression; `PDF::Reader::LZW.decode`
     # exists, but fails. The `uncompress` command works only if the extension is ".Z".
@@ -374,35 +425,146 @@ class FR_BODACC < Framework::Processor
     end
   end
 
-  def xpath(parent, path, options = {})
-    node = parent.at_xpath("./#{path}")
+  # @param [Nokogiri::XML::Element] parent a parent node
+  # @param [path] path an XPath path
+  # @return [Nokogiri::XML::Element] a child node
+  def one(parent, path)
+    nodes = parent.xpath("./#{path}")
+    if nodes.any?
+      if nodes.size > 1
+        warn("expected 0..1 #{path} in #{parent.name}")
+      end
+      nodes[0]
+    end
+  end
+
+  # @param [Nokogiri::XML::Element] parent a parent node
+  # @param [path] path an XPath path
+  # @param [Hash] options validation options
+  # @return [String,Integer] a value
+  def value(parent, path, options = {})
+    node = one(parent, path)
     if node
-      value = node.text
-      case options[:type]
-      when :integer
+      value = node.text.strip
+
+      if options[:type] == :integer
         begin
           Integer(value)
         rescue ArgumentError => e
           error("#{e} in:\n#{parent.to_s}")
         end
-      else
-        case options[:format]
-        when :date
-          pattern = options[:pattern] || '%Y-%m-%d'
-          if pattern['%B']
-            value = value.gsub(MONTH_NAMES_RE){|match| MONTH_NAMES.fetch(match)}.sub(/\A1er\b/, '1').gsub(/\p{Space}/, ' ')
-          end
-          begin
-            Date.strptime(value, pattern).strftime('%Y-%m-%d')
-          rescue ArgumentError => e
-            error("#{e}: #{value}")
-          end
-        else
-          value
+
+      elsif options[:format] == :date
+        pattern = options[:pattern] || '%Y-%m-%d'
+        if pattern['%B']
+          value = value.gsub(MONTH_NAMES_RE){|match| MONTH_NAMES.fetch(match)}.sub(/\A1er\b/, '1').gsub(/\p{Space}/, ' ')
         end
+        begin
+          Date.strptime(value, pattern).strftime('%Y-%m-%d')
+        rescue ArgumentError => e
+          error("#{e}: #{value}")
+        end
+
+      elsif options[:pattern]
+        value.match(options[:pattern])[0]
+
+      else
+        if options[:enum] && !options[:enum].include?(value)
+          warn("expected #{value} in #{options[:enum].join(', ')}")
+        end
+        value
       end
+
     elsif options[:required]
       warn("expected #{path} in:\n#{parent.parent.to_s}")
+    end
+  end
+
+  ### Helpers for generic XML sections
+
+  # @param [Nokogiri::XML::Element] parent a parent node
+  # @return [Hash] the values of the moral person
+  def moral_person(parent)
+    if parent
+      {
+        type: 'Moral person',
+        name: value(parent, 'denomination', required: true),
+        registration: registration_number(parent),
+        # <personneMorale> only
+        company_type: value(parent, 'formeJuridique'),
+        alternative_names: [{
+          company_name: value(parent, 'nomCommercial'),
+          type: 'trading',
+        }, {
+          company_name: value(parent, 'sigle'),
+          type: 'abbreviation',
+        }],
+        directors: value(parent, 'administration'), # TODO parse
+      }
+    end
+  end
+
+  # @param [Nokogiri::XML::Element] parent a parent node
+  # @return [Hash] the values of the physical person
+  def physical_person(parent)
+    if parent
+      {
+        type: 'Physical person',
+        family_name: value(parent, 'nom', required: true),
+        given_name: value(parent, 'prenom'),
+        customary_name: value(parent, 'nomUsage'),
+        registration: registration_number(parent),
+        # <precedentProprietairePP> and <precedentExploitantPP> only
+        nature: value(parent, 'nature'),
+        # <personnePhysique> only
+        alternative_names: [{
+          name: value(parent, 'pseudonyme'),
+        }, {
+          name: value(parent, 'nomCommercial'),
+        }],
+        nationality: value(parent, 'nationalite'),
+      }
+    end
+  end
+
+  # @param [Nokogiri::XML::Element] parent a parent node
+  # @return [Hash] the values of the registration
+  def registration_number(parent)
+    node = one(parent, 'numeroImmatriculation')
+    if node
+      {
+        registered: true,
+        number: value(node, 'numeroIdentification', required: true, pattern: /\A\d{3} \d{3} \d{3}\z/),
+        rcs: value(node, 'codeRCS', required: true, enum: ['RCS']),
+        clerk: value(node, 'nomGreffeImmat', required: true),
+      }
+    elsif parent.at_xpath('./nonInscrit')
+      {
+        registered: !value(parent, 'nonInscrit', enum: ['RCS non inscrit. ']),
+      }
+    else
+      warn("expected one of numeroImmatriculation or nonInscrit in precedentExploitantPP")
+    end
+  end
+
+  # @param [Nokogiri::XML::Element] parent a parent node
+  # @param [path] path an XPath path
+  # @return [Hash] the values of the address
+  def france_address(parent, path)
+    node = one(parent, path)
+    if node
+      # @see AddressRepresentation and LocatorDesignatorTypeValue in http://inspire.ec.europa.eu/documents/Data_Specifications/INSPIRE_DataSpecification_AD_v3.0.1.pdf
+      {
+        locator_designator_address_number: value(node, 'numeroVoie', format: :integer),
+        thoroughfare_type: value(node, 'typeVoie'),
+        thoroughfare_name: value(node, 'nomVoie'),
+        locator_designator_building_identifier: value(node, 'complGeographique'),
+        locator_designator_postal_delivery_identifier: value(node, 'BP'),
+        address_area: value(node, 'localite'),
+        post_code: value(node, 'codePostal', required: true, format: :integer),
+        admin_unit: value(node, 'ville', required: true),
+        country_name: 'France',
+      }
     end
   end
 end
