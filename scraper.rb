@@ -66,6 +66,48 @@ end
 # Scraper
 
 class FR_BODACC < Framework::Processor
+  # @see "4. REPARTITION DES ANNONCES BODACC"
+  FILENAME_PATTERNS = [
+    /\A(RCS-A)_BX(A)(\d{4})(\d{4})\.taz\z/,
+    /\A(PCL)_BX(A)(\d{4})(\d{4})\.taz\z/,
+    /\A(DIV)(A)(\d{8})(\d{4})\.taz\z/,
+    /\A(RCS-B)_BX(B)(\d{4})(\d{4})\.taz\z/,
+    /\A(BILAN)_BX(C)(\d{4})(\d{4})\.taz\z/,
+  ].freeze
+
+  SCHEMAS = {
+    'RCS-A' => 'RCI_V%0d.xsd',
+    'PCL' => 'PCL_V%0d.xsd',
+    'DIV' => 'Divers_V%02d.xsd',
+    'RCS-B' => 'RCM_V%02d.xsd',
+    'BILAN' => 'Bilan_V%02d.xsd',
+  }.freeze
+
+  VERSIONS = {
+    # Must be in reverse chronological order.
+    '2015-02-16' => {
+      'RCS-A' => 10,
+      'PCL' => 13,
+      'DIV' => 1,
+      'RCS-B' => 11,
+      'BILAN' => 6,
+    },
+    '2014-04-01' => {
+      'RCS-A' => 10,
+      'PCL' => 12,
+      'DIV' => 1,
+      'RCS-B' => 11,
+      'BILAN' => 6,
+    },
+    '2011-12-07' => {
+      'RCS-A' => 10,
+      'PCL' => 11, # not in "DOCUMENTATIONS"
+      'DIV' => 1,
+      'RCS-B' => 11,
+      'BILAN' => 3,
+    },
+  }.freeze
+
   class FTP < Net::FTP
     extend Forwardable
 
@@ -113,7 +155,7 @@ class FR_BODACC < Framework::Processor
 
   class TaredTazFile < DataFile
     def path
-      Tempfile.open([name, '.Z']){|f|
+      Tempfile.open([name.gsub(File::SEPARATOR, '-'), '.Z']){|f|
         f.binmode
         f.write(@arg.read)
         f
@@ -127,6 +169,11 @@ class FR_BODACC < Framework::Processor
     end
   end
 
+  def initialize(*args)
+    super
+    @schemas = {}
+  end
+
   def scrape
     FTP.open('echanges.dila.gouv.fr') do |ftp|
       ftp.logger = @logger
@@ -136,6 +183,17 @@ class FR_BODACC < Framework::Processor
       ftp.nlst.each do |remotefile|
         # Previous years are archived as `.tar` files.
         if File.extname(remotefile) == '.tar'
+          year = remotefile.match(/\ABODACC_(\d{4})\.tar\z/)[1]
+
+          if Env.development? && ENV['year'] && year != ENV['year']
+            next
+          elsif year < '2012'
+            # TODO Add support for files prior to 2011-12-07. Will need to
+            # figure out which XSD are used between which dates.
+            debug("Skipping #{remotefile}")
+            next
+          end
+
           Gem::Package::TarReader.new(ftp.download(remotefile)).each do |entry|
             if entry.file?
               parse(TaredTazFile.new(entry.full_name, entry), remotefile)
@@ -144,6 +202,10 @@ class FR_BODACC < Framework::Processor
 
         # The present year contains individual `.taz` files.
         elsif remotefile[/\A\d{4}\z/]
+          if Env.development? && ENV['year'] && remotefile != ENV['year']
+            next
+          end
+
           ftp.chdir(remotefile)
           ftp.nlst.each do |name|
             parse(RemoteTazFile.new(name, ftp), remotefile)
@@ -159,16 +221,63 @@ class FR_BODACC < Framework::Processor
 
   def parse(file, directory)
     if File.extname(file.name) == '.taz'
-      # Ruby has no LZW decompression gems or standard libraries.
-      # `PDF::Reader::LZW.decode` exists, but fails.
-      # We can't stream to `Gem::Package::TarReader` with `IO.popen` or
-      # similar because it causes "Errno::ESPIPE: Illegal seek".
-      io = uncompress(file.path)
-      Gem::Package::TarReader.new(io).each do |entry|
-        Nokogiri::XML(entry.read)
+      basename = File.basename(file.name)
+
+      match = nil
+      FILENAME_PATTERNS.find do |pattern|
+        match = basename.match(pattern)
+      end
+      assert("unrecognized filename pattern #{basename}"){match}
+
+      format = match[1]
+      bodacc = match[2]
+      number = Integer(match[4].sub(/\A0+/, ''))
+      date = if match[3].size == 4
+        Date.strptime(match[3], '%Y').strftime('%Y')
+      else
+        Date.strptime(match[3], '%Y%m%d').strftime('%Y-%m-%d')
+      end
+
+      if Env.development? && ENV['format'] && format != ENV['format']
+        return
+      elsif format != 'RCS-A'
+        # TODO Add support for other formats.
+        debug("Skipping #{basename}")
+        return
+      end
+
+      schema = SCHEMAS.fetch(format)
+
+      Gem::Package::TarReader.new(uncompress(file.path)).each do |entry|
+        doc = Nokogiri::XML(entry.read)
+
+        date_published = doc.at_xpath('//dateParution').text
+        date_published = case date_published
+        when %r{/\d{4}\z}
+          Date.strptime(date_published, '%d/%m/%Y')
+        when %r{\A\d{4}/}
+          Date.strptime(date_published, '%Y/%m/%d')
+        else
+          Date.strptime(date_published, '%Y-%m-%d')
+        end
+        date_published = date_published.strftime('%Y-%m-%d')
+
+        # TODO If we want to validate the XML, need to resolve this error:
+        # "simple type 'Devise_Type', attribute 'base': The QName value
+        # '{urn:un:unece:uncefact:codelist:standard:5:4217:2001}CurrencyCodeContentType'
+        # does not resolve to a(n) simple type definition."
+
+        # _, version = VERSIONS.find do |start_date,_|
+        #   start_date < date_published
+        # end
+        # schema %= version.fetch(format)
+        # @schemas[schema] ||= Nokogiri::XML::Schema(File.read(File.expand_path(File.join('docs', 'xsd', schema), Dir.pwd)))
+        # @schemas[schema].validate(doc).each do |error|
+        #   warn(error.message)
+        # end
 
         # TODO
-        # Parse according to schema
+        # Parse according to schema by working throughs schema in Chrome
         # Use Nori to transform into JSON for other_attributes
       end
     else
@@ -177,7 +286,8 @@ class FR_BODACC < Framework::Processor
   end
 
   def uncompress(oldpath)
-    # The `uncompress` command doesn't work unless the filename ends in ".Z".
+    # Ruby has no gem or library for LZW decompression; `PDF::Reader::LZW.decode`
+    # exists, but fails. The `uncompress` command works only if the extension is ".Z".
     rename = File.extname(oldpath) != '.Z'
     begin
       if rename
@@ -187,6 +297,8 @@ class FR_BODACC < Framework::Processor
       else
         path = oldpath
       end
+      # We can't stream to `Gem::Package::TarReader` with `IO.popen` or
+      # similar because it causes "Errno::ESPIPE: Illegal seek".
       StringIO.new(`uncompress -c #{path}`)
     ensure
       if rename
