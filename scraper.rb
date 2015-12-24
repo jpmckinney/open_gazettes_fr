@@ -68,11 +68,11 @@ end
 class FR_BODACC < Framework::Processor
   # @see "4. REPARTITION DES ANNONCES BODACC"
   FILENAME_PATTERNS = [
-    /\A(RCS-A)_BX(A)(\d{4})(\d{4})\.taz\z/,
-    /\A(PCL)_BX(A)(\d{4})(\d{4})\.taz\z/,
-    /\A(DIV)(A)(\d{8})(\d{4})\.taz\z/,
-    /\A(RCS-B)_BX(B)(\d{4})(\d{4})\.taz\z/,
-    /\A(BILAN)_BX(C)(\d{4})(\d{4})\.taz\z/,
+    /\A(RCS-A)_BX(A)(\d{8})\.taz\z/,
+    /\A(PCL)_BX(A)(\d{8})\.taz\z/,
+    /\A(DIV)(A)(\d{12})\.taz\z/,
+    /\A(RCS-B)_BX(B)(\d{8})\.taz\z/,
+    /\A(BILAN)_BX(C)(\d{8})\.taz\z/,
   ].freeze
 
   SCHEMAS = {
@@ -107,6 +107,23 @@ class FR_BODACC < Framework::Processor
       'BILAN' => 3,
     },
   }.freeze
+
+  MONTH_NAMES = {
+    'janvier' => 'January',
+    'février' => 'February',
+    'mars' => 'March',
+    'avril' => 'April',
+    'mai' => 'May',
+    'juin' => 'June',
+    'juillet' => 'July',
+    'août' => 'August',
+    'septembre' => 'September',
+    'octobre' => 'October',
+    'novembre' => 'November',
+    'décembre' => 'December',
+  }.freeze
+
+  MONTH_NAMES_RE = Regexp.new(MONTH_NAMES.keys.join('|')).freeze
 
   class FTP < Net::FTP
     extend Forwardable
@@ -230,13 +247,8 @@ class FR_BODACC < Framework::Processor
       assert("unrecognized filename pattern #{basename}"){match}
 
       format = match[1]
-      bodacc = match[2]
-      number = Integer(match[4].sub(/\A0+/, ''))
-      date = if match[3].size == 4
-        Date.strptime(match[3], '%Y').strftime('%Y')
-      else
-        Date.strptime(match[3], '%Y%m%d').strftime('%Y-%m-%d')
-      end
+      publication = "BODACC #{match[2]}"
+      issue_number_from_filename = match[3]
 
       if Env.development? && ENV['format'] && format != ENV['format']
         return
@@ -246,12 +258,13 @@ class FR_BODACC < Framework::Processor
         return
       end
 
-      schema = SCHEMAS.fetch(format)
-
       Gem::Package::TarReader.new(uncompress(file.path)).each do |entry|
-        doc = Nokogiri::XML(entry.read)
+        document = Nokogiri::XML(entry.read.force_encoding('iso-8859-1').encode('utf-8'), nil, 'utf-8')
 
-        date_published = doc.at_xpath('//dateParution').text
+        issue_number = document.at_xpath('//parution').text
+        assert("expected #{issue_number_from_filename}, got #{issue_number}"){issue_number == issue_number_from_filename}
+
+        date_published = document.at_xpath('//dateParution').text
         date_published = case date_published
         when %r{/\d{4}\z}
           Date.strptime(date_published, '%d/%m/%Y')
@@ -262,7 +275,8 @@ class FR_BODACC < Framework::Processor
         end
         date_published = date_published.strftime('%Y-%m-%d')
 
-        # TODO If we want to validate the XML, need to resolve this error:
+        # TODO If we want to validate the XML, we need to resolve this error,
+        # which may be related to the `ISO_Currency_Code_2001.xsd`.
         # "simple type 'Devise_Type', attribute 'base': The QName value
         # '{urn:un:unece:uncefact:codelist:standard:5:4217:2001}CurrencyCodeContentType'
         # does not resolve to a(n) simple type definition."
@@ -270,15 +284,68 @@ class FR_BODACC < Framework::Processor
         # _, version = VERSIONS.find do |start_date,_|
         #   start_date < date_published
         # end
-        # schema %= version.fetch(format)
+        # schema = SCHEMAS.fetch(format) % version.fetch(format)
         # @schemas[schema] ||= Nokogiri::XML::Schema(File.read(File.expand_path(File.join('docs', 'xsd', schema), Dir.pwd)))
-        # @schemas[schema].validate(doc).each do |error|
+        # @schemas[schema].validate(document).each do |error|
         #   warn(error.message)
         # end
 
+        path = format == 'PCL' ? 'annonces/annonce' : 'listeAvis/avis'
+        document.xpath("//#{path}").each do |node|
+          notice_type = node.at_xpath('./typeAnnonce/*').name # "annonce", "rectificatif", "annulation"
+          uid = node.at_xpath('./nojo').text
+          identifier = Integer(node.at_xpath('./numeroAnnonce').text)
+          department_number = node.at_xpath('./numeroDepartement').text
+          tribunal = node.at_xpath('./tribunal').text.gsub("\n", " ")
+
+=begin
+          personnes
+          etablissement
+          precedentProprietairePM
+          precedentProprietairePP
+          precedentExploitantPM
+          precedentExploitantPP
+          # The two PM and two PP are formatted the same
+=end
+
+          # <parutionAvisPrecedent>
+          if node.at_xpath('./parutionAvisPrecedent')
+            if !['rectificatif', 'annulation'].include?(notice_type)
+              warn("unexpected parutionAvisPrecedent for typeAnnonce of #{notice_type}")
+            end
+
+            prior_publication = xpath(node, 'parutionAvisPrecedent/nomPublication', required: true) # e.g. "BODACC A"
+            prior_issue_number = xpath(node, 'parutionAvisPrecedent/numeroParution', required: true)
+            prior_date_published = xpath(node, 'parutionAvisPrecedent/dateParution', required: true, format: :date, pattern: '%e %B %Y')
+            prior_identifier = xpath(node, 'parutionAvisPrecedent/numeroAnnonce', required: true, type: :integer)
+          end
+
+          # <acte>
+          subnode = node.at_xpath('./acte/*')
+          act_type = subnode.name # "creation", "immatriculation", "vente"
+          classification = xpath(subnode, "categorie#{act_type.capitalize}", required: act_type != 'vente')
+          date_registered = xpath(subnode, 'dateImmatriculation', format: :date)
+          start_date = xpath(subnode, 'dateCommencementActivite', format: :date)
+          description = xpath(subnode, 'descriptif')
+
+          if ['immatriculation', 'vente'].include?(act_type)
+            effective_date = xpath(subnode, 'dateEffet', format: :date, pattern: '%e %B %Y')
+          end
+
+          if act_type == 'vente'
+            if subnode.at_xpath('./journal')
+              journal_title = xpath(subnode, 'journal/titre', required: true)
+              journal_date = xpath(subnode, 'journal/date', required: true)
+            end
+
+            opposition = xpath(subnode, 'opposition')
+            debt_declaration = xpath(subnode, 'declarationCreance')
+          end
+        end
+
         # TODO
-        # Parse according to schema by working throughs schema in Chrome
-        # Use Nori to transform into JSON for other_attributes
+        # finish parsing into variables
+        # combine the variables into a hash and output
       end
     else
       warn("unexpected file extension #{file.name} in BODACC/#{directory}")
@@ -304,6 +371,38 @@ class FR_BODACC < Framework::Processor
       if rename
         File.rename(newpath, oldpath)
       end
+    end
+  end
+
+  def xpath(parent, path, options = {})
+    node = parent.at_xpath("./#{path}")
+    if node
+      value = node.text
+      case options[:type]
+      when :integer
+        begin
+          Integer(value)
+        rescue ArgumentError => e
+          error("#{e} in:\n#{parent.to_s}")
+        end
+      else
+        case options[:format]
+        when :date
+          pattern = options[:pattern] || '%Y-%m-%d'
+          if pattern['%B']
+            value = value.gsub(MONTH_NAMES_RE){|match| MONTH_NAMES.fetch(match)}.sub(/\A1er\b/, '1').gsub(/\p{Space}/, ' ')
+          end
+          begin
+            Date.strptime(value, pattern).strftime('%Y-%m-%d')
+          rescue ArgumentError => e
+            error("#{e}: #{value}")
+          end
+        else
+          value
+        end
+      end
+    elsif options[:required]
+      warn("expected #{path} in:\n#{parent.parent.to_s}")
     end
   end
 end
