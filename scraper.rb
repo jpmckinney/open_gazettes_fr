@@ -250,7 +250,7 @@ class FR_BODACC < Framework::Processor
       publication = "BODACC #{match[2]}"
       issue_number_from_filename = match[3]
 
-      if Env.development? && ENV['format'] && format != ENV['format']
+      if Env.development? && (ENV['from_issue_number'] && issue_number_from_filename < ENV['from_issue_number'] || ENV['format'] && format != ENV['format'])
         return
       elsif format != 'RCS-A'
         # TODO Add support for other formats.
@@ -323,7 +323,7 @@ class FR_BODACC < Framework::Processor
           # <acte>
           subnode = node.at_xpath('./acte/*')
           act_type = subnode.name # "creation", "immatriculation", "vente"
-          classification = xpath(subnode, "categorie#{act_type.capitalize}", required: act_type != 'vente')
+          classification = xpath(subnode, "categorie#{act_type.capitalize}", required: act_type == 'creation') # required by schema, but sometimes missing
           date_registered = xpath(subnode, 'dateImmatriculation', format: :date)
           start_date = xpath(subnode, 'dateCommencementActivite', format: :date)
           description = xpath(subnode, 'descriptif')

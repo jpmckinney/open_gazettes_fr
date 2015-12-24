@@ -4,6 +4,18 @@ Run the scraper:
 
     TURBOT_ENV=development ruby scraper.rb
 
+Run a specific year:
+
+    year=2015 TURBOT_ENV=development ruby scraper.rb
+
+Run a specific format:
+
+    format=RCS-A TURBOT_ENV=development ruby scraper.rb
+
+Start from a specific issue number:
+
+    from_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
+
 The `data` directory is structured to match the output of:
 
     wget -r ftp://echanges.dila.gouv.fr/BODACC/
