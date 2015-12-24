@@ -13,25 +13,26 @@ task :xsd do
   end
 
   zip_patterns = [
-    /\AXSD_Bodacc_(Bilan)_Redif_ ?([\d_]{10})_(\d{3}).zip\z/,
-    /\AXSD_Bodacc_(Divers)_Redif_ ?([\d_]{10})_(\d{3}).zip\z/,
-    /\AXSD_Bodacc_(PCL)_Redif_ ?([\d_]{10})_(\d{3}).zip\z/,
-    /\AXSD_Bodacc_(RCI)_Redif_ ?([\d_]{10})_(\d{3}).zip\z/,
-    /\AXSD_Bodacc_(RCM)_Redif_ ?([\d_]{10})_(\d{3}).zip\z/,
-    /\AXSD_(ISO_CurrencyCode)_ ?([\d_]{10})_(\d{3}).zip\z/,
+    /\AXSD_Bodacc_(Bilan)_Redif_ ?([\d_]{10})_(\d{3})\.zip\z/,
+    /\AXSD_Bodacc_(Divers)_Redif_ ?([\d_]{10})_(\d{3})\.zip\z/,
+    /\AXSD_Bodacc_(PCL)_Redif_ ?([\d_]{10})_(\d{3})\.zip\z/,
+    /\AXSD_Bodacc_(RCI)_Redif_ ?([\d_]{10})_(\d{3})\.zip\z/,
+    /\AXSD_Bodacc_(RCM)_Redif_ ?([\d_]{10})_(\d{3})\.zip\z/,
+    /\AXSD_(ISO_CurrencyCode)_ ?([\d_]{10})_(\d{3})\.zip\z/,
   ]
 
   xsd_patterns = [
-    /\ABodacc_(Bilan)_Redif_(?:[\d_]{10}_)?(V\d{2}).xsd\z/,
-    /\ABodacc_(Divers)_Redif_[\d_]{10}_(V\d{2}).xsd\z/,
-    /\ABodacc_(PCL)_Redif_(?:[\d_]{10}_)?(V\d{2}).xsd\z/,
-    /\ABodacc_(RCI)_Redif_[\d_]{10}_(V\d{2}).xsd\z/,
-    /\ABodacc_(RCM)_Redif_[\d_]{10}_(V\d{2}).xsd\z/,
-    /\A(ISO_CurrencyCode)_(\d{4}).xsd\z/,
+    /\ABodacc_(Bilan)_Redif_(?:[\d_]{10}_)?(V\d{2})\.xsd\z/,
+    /\ABodacc_(Divers)_Redif_[\d_]{10}_(V\d{2})\.xsd\z/,
+    /\ABodacc_(PCL)_Redif_(?:[\d_]{10}_)?(V\d{2})\.xsd\z/,
+    /\ABodacc_(RCI)_Redif_[\d_]{10}_(V\d{2})\.xsd\z/,
+    /\ABodacc_(RCM)_Redif_[\d_]{10}_(V\d{2})\.xsd\z/,
+    /\A(ISO_CurrencyCode)_(\d{4})\.xsd\z/,
   ]
 
   cache = {}
 
+  # TODO: The XSD files in the pre-2011 directory are not extracted.
   paths = Dir[File.expand_path(File.join('data', 'echanges.dila.gouv.fr', 'BODACC', 'DOCUMENTATIONS', '*_*', '*.zip'), Dir.pwd)].sort_by do |path|
     zip_name = File.basename(path)
 
