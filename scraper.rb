@@ -125,7 +125,7 @@ class FR_BODACC < Framework::Processor
 
   MONTH_NAMES_RE = Regexp.new(MONTH_NAMES.keys.join('|')).freeze
 
-  class FTP < Net::FTP
+  class BODACCFTP < Net::FTP
     extend Forwardable
 
     def_delegators :@logger, :debug, :info, :warn, :error, :fatal
@@ -192,7 +192,7 @@ class FR_BODACC < Framework::Processor
   end
 
   def scrape
-    FTP.open('echanges.dila.gouv.fr') do |ftp|
+    BODACCFTP.open('echanges.dila.gouv.fr') do |ftp|
       ftp.logger = @logger
       ftp.login
 
@@ -211,9 +211,13 @@ class FR_BODACC < Framework::Processor
             next
           end
 
+          options = {
+            retrieved_at: now,
+            source_url: "ftp://echanges.dila.gouv.fr#{ftp.pwd}/#{remotefile}",
+          }
           Gem::Package::TarReader.new(ftp.download(remotefile)).each do |entry|
             if entry.file?
-              parse(TaredTazFile.new(entry.full_name, entry), remotefile)
+              parse(TaredTazFile.new(entry.full_name, entry), remotefile, options)
             end
           end
 
@@ -225,7 +229,12 @@ class FR_BODACC < Framework::Processor
 
           ftp.chdir(remotefile)
           ftp.nlst.each do |name|
-            parse(RemoteTazFile.new(name, ftp), remotefile)
+            # I can't find a media type for LZW-compressed `.taz` files.
+            url = "ftp://echanges.dila.gouv.fr#{ftp.pwd}/#{name}"
+            parse(RemoteTazFile.new(name, ftp), remotefile, {
+              url: url,
+              source_url: url,
+            })
           end
           ftp.chdir('..')
 
@@ -238,7 +247,11 @@ class FR_BODACC < Framework::Processor
 
   # @param [DataFile] the file to parse
   # @param [String] the file's directory
-  def parse(file, directory)
+  # @param [Hash] options
+  # @option options [String] :url the issue URL
+  # @option options [String] :source_url the source URL
+  # @option options [String] :retrieved_at the time of retrieval
+  def parse(file, directory, options)
     if File.extname(file.name) == '.taz'
       basename = File.basename(file.name)
 
@@ -249,7 +262,7 @@ class FR_BODACC < Framework::Processor
       assert("unrecognized filename pattern #{basename}"){match}
 
       format = match[1]
-      publication = "BODACC #{match[2]}"
+      edition_id = match[2]
       issue_number_from_filename = match[3]
 
       if Env.development? && (ENV['from_issue_number'] && issue_number_from_filename < ENV['from_issue_number'] || ENV['format'] && format != ENV['format'])
@@ -260,6 +273,7 @@ class FR_BODACC < Framework::Processor
         return
       end
 
+      retrieved_at = options[:retrieved_at] || now
       Gem::Package::TarReader.new(uncompress(file.path)).each do |entry|
         document = Nokogiri::XML(entry.read.force_encoding('iso-8859-1').encode('utf-8'), nil, 'utf-8')
 
@@ -291,6 +305,28 @@ class FR_BODACC < Framework::Processor
         # @schemas[schema].validate(document).each do |error|
         #   warn(error.message)
         # end
+
+        default_record = {
+          issue: {
+            publication: {
+              publisher: {
+                name: "Direction de l'information légale et administrative",
+                url: 'http://www.dila.premier-ministre.gouv.fr/',
+              },
+              jurisdiction_code: 'fr',
+              title: 'Bulletin officiel des annonces civiles et commerciales',
+              url: 'http://www.bodacc.fr/',
+            },
+            identifier: issue_number,
+            edition_id: edition_id,
+            url: options[:url],
+          },
+          date_published: date_published,
+          source_url: options[:source_url],
+          sample_date: retrieved_at,
+          retrieved_at: retrieved_at,
+          confidence: 'HIGH',
+        }
 
         path = format == 'PCL' ? 'annonces/annonce' : 'listeAvis/avis'
         document.xpath("//#{path}").each do |node|
@@ -402,6 +438,11 @@ class FR_BODACC < Framework::Processor
   end
 
   ### Helpers
+
+  # @return [String] the present UTC time in ISO 8601 format
+  def now
+    Time.now.utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+  end
 
   # @param [String] a file path to a compressed file
   # @return [StringIO] an IO of the uncompressed file
