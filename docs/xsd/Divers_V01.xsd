@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp1 (http://www.altova.com) by SSI/CTI (JOURNAUX OFFICIELS) -->
+<!-- edited with XML Spy v4.4 U (http://www.xmlspy.com) by journal-officiel (Direction Journaux Officiels) -->
+<!-- ********************************************************************************************************************************************************************************** -->
+<!-- Version V01 du 29/07/09                                                                                                             -->
+<!-- ********************************************************************************************************************************************************************************** -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:iso4217="urn:un:unece:uncefact:codelist:standard:5:4217:2001" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:element name="Divers_XML_Rediff">
+		<xs:annotation>
+			<xs:documentation>Composant Annonce diverse pour les Reffuseurs</xs:documentation>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="parution" type="Parution_Type">
+					<xs:annotation>
+						<xs:documentation>Numero de la parution</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="dateParution" type="AlphaNum_Type">
+					<xs:annotation>
+						<xs:documentation>Date de la parution</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="listeAvis">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="avis" maxOccurs="unbounded">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="typeAnnonce">
+											<xs:annotation>
+												<xs:documentation>Type de l'annonce</xs:documentation>
+											</xs:annotation>
+											<xs:complexType>
+												<xs:choice>
+													<xs:element name="annonce">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+												</xs:choice>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="nojo">
+											<xs:annotation>
+												<xs:documentation>Numéro d'identification J.O.</xs:documentation>
+											</xs:annotation>
+											<xs:simpleType>
+												<xs:restriction base="AlphaNum_Type">
+													<xs:length value="15"/>
+												</xs:restriction>
+											</xs:simpleType>
+										</xs:element>
+										<xs:element name="numeroAnnonce">
+											<xs:annotation>
+												<xs:documentation>Numéro de l'avis dans la parution</xs:documentation>
+											</xs:annotation>
+											<xs:simpleType>
+												<xs:restriction base="Num_Type">
+													<xs:minLength value="1"/>
+												</xs:restriction>
+											</xs:simpleType>
+										</xs:element>
+										<xs:element name="titreAnnonce" type="xs:string" minOccurs="0">
+											<xs:annotation>
+												<xs:documentation>Titre de l'annonce</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:element name="contenuAnnonce" type="xs:string">
+											<xs:annotation>
+												<xs:documentation>Contenu de l'annonce</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+	<!-- date -->
+	<xs:simpleType name="Date_Type">
+		<xs:annotation>
+			<xs:documentation>type simple format date YYYY-MM-DD</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:date">
+			<xs:pattern value="....-..-.."/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DateHeure_Type">
+		<xs:annotation>
+			<xs:documentation>format YYYY-MM-DDTHH:MM:SS</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:dateTime">
+			<xs:pattern value="....-..-..T..:..:.."/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- string -->
+	<xs:simpleType name="Alpha_Type">
+		<xs:annotation>
+			<xs:documentation>type A :  tous les caractères, toutes les pontuations, tous les symboles, [ \p{M}\p{P}\p{S}\p{L}\p{Z}\p{C} &amp; &lt; &gt;]*</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[ \p{M}\p{P}\p{S}\p{L}\p{Z}\p{C} ]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="AlphaNum_Type">
+		<xs:annotation>
+			<xs:documentation>type AN : tous les caractères, tous les chiffres, toutes les pontuations, tous les symboles, [ \p{M}\p{P}\p{S}\p{L}\p{N}\p{Z}\p{C} &amp; &lt; &gt;]*</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[\p{M}\p{P}\p{S}\p{L}\p{N}\p{Z}\p{C}]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- number -->
+	<xs:simpleType name="Num_Type">
+		<xs:annotation>
+			<xs:documentation>type N : tous les chiffres</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[\d]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- technique -->
+	<xs:simpleType name="Parution_Type">
+		<xs:restriction base="Num_Type">
+			<xs:length value="8"/>
+		</xs:restriction>
+	</xs:simpleType>
+</xs:schema>

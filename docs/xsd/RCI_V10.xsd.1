@@ -1,0 +1,830 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2006 sp2 U (http://www.altova.com) by djo (JOURNAUX OFFICIELS) -->
+<!-- edited with XML Spy v4.4 U (http://www.xmlspy.com) by journal-officiel (Direction de l'Information Légale et Administrative) -->
+<!-- ********************************************************************************************************************************************************************************** -->
+<!-- Version V01 du 14/01/08                                                                                                                                                                                                      -->
+<!--               V05 du 12/03/08 : ajout norme ISO 4217 pour Devise_Type                                                                                                                                  -->
+<!--               V06 du 04/04/08 : Dans les éléments precedentProprietairePM, precedentProprietairePP,           -->
+<!--               precedentExploitantPP et precedentExploitantPM, les éléments numeroImmatriculation et nonInscrit sont devenus optionnels                                            -->
+<!--               V07 du 17/04/08 : ajout champs dateEffet                                                                                                                                  -->
+<!--               V09 du 07/10/09 : Longueur maximum de 1000 caractère pour l'élément nomVoie dans Adresse au lieu de 50                                                                                -->
+<!--               V10 du 15/04/10 : Changement du numéro de département de la Mayotte qui devient 976                                                                                -->
+<!--                          24/05/13 : Augmentation de la longueur max de NomDenomination_Type à 1000 pour harmoniser avec la schéma d'entrée                       -->
+<!-- ********************************************************************************************************************************************************************************** -->
+<!-- ********************************************************************************************************************************************************************************** -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:iso4217="urn:un:unece:uncefact:codelist:standard:5:4217:2001" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:import namespace="urn:un:unece:uncefact:codelist:standard:5:4217:2001" schemaLocation="ISO_CurrencyCode_2001.xsd"/>
+	<xs:element name="RCS-A_IMMAT">
+		<xs:annotation>
+			<xs:documentation>Composant Annonce Immatriculations, Ventes et Créations pour les Reffuseurs</xs:documentation>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="parution" type="Parution_Type">
+					<xs:annotation>
+						<xs:documentation>Numero de la parution</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="dateParution" type="Date_Type">
+					<xs:annotation>
+						<xs:documentation>Date de la parution</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="listeAvis">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="avis" maxOccurs="unbounded">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="typeAnnonce">
+											<xs:annotation>
+												<xs:documentation>Type de l'annonce</xs:documentation>
+											</xs:annotation>
+											<xs:complexType>
+												<xs:choice>
+													<xs:element name="annonce">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+													<xs:element name="rectificatif">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+													<xs:element name="annulation">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+												</xs:choice>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="nojo">
+											<xs:annotation>
+												<xs:documentation>Numéro d'identification J.O.</xs:documentation>
+											</xs:annotation>
+											<xs:simpleType>
+												<xs:restriction base="AlphaNum_Type">
+													<xs:length value="15"/>
+												</xs:restriction>
+											</xs:simpleType>
+										</xs:element>
+										<xs:element name="numeroAnnonce">
+											<xs:annotation>
+												<xs:documentation>Numéro de l'avis dans la parution</xs:documentation>
+											</xs:annotation>
+											<xs:simpleType>
+												<xs:restriction base="Num_Type">
+													<xs:minLength value="1"/>
+												</xs:restriction>
+											</xs:simpleType>
+										</xs:element>
+										<xs:element name="numeroDepartement" type="Departement_Type">
+											<xs:annotation>
+												<xs:documentation>N° de département du Greffe</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:element name="tribunal" type="AlphaNum_Type">
+											<xs:annotation>
+												<xs:documentation>Code Greffe qui a procédé à l'avis -</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:sequence>
+											<xs:element name="personnes">
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name="personne" maxOccurs="unbounded">
+															<xs:complexType>
+																<xs:sequence maxOccurs="unbounded">
+																	<xs:choice>
+																		<xs:element name="personneMorale">
+																			<xs:complexType>
+																				<xs:sequence>
+																					<xs:choice>
+																						<xs:element name="numeroImmatriculation" type="NumeroImmatriculation_Type"/>
+																						<xs:element name="nonInscrit">
+																							<xs:simpleType>
+																								<xs:restriction base="Alpha_Type"/>
+																							</xs:simpleType>
+																						</xs:element>
+																					</xs:choice>
+																					<xs:element name="denomination" type="NomDenomination_Type">
+																						<xs:annotation>
+																							<xs:documentation>Dénomination</xs:documentation>
+																						</xs:annotation>
+																					</xs:element>
+																					<xs:element name="formeJuridique" minOccurs="0">
+																						<xs:annotation>
+																							<xs:documentation>Forme juridique (Ex : Société Anonyme, SARL, EURL,...)</xs:documentation>
+																						</xs:annotation>
+																						<xs:simpleType>
+																							<xs:restriction base="AlphaNum_Type">
+																								<xs:minLength value="1"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="nomCommercial" minOccurs="0">
+																						<xs:annotation>
+																							<xs:documentation>Nom commercial</xs:documentation>
+																						</xs:annotation>
+																						<xs:simpleType>
+																							<xs:restriction base="AlphaNum_Type">
+																								<xs:minLength value="1"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="sigle" type="Sigle_Type" minOccurs="0">
+																						<xs:annotation>
+																							<xs:documentation>Sigle</xs:documentation>
+																						</xs:annotation>
+																					</xs:element>
+																					<xs:element name="administration" type="AlphaNum_Type" minOccurs="0">
+																						<xs:annotation>
+																							<xs:documentation>nouvelle situation,ex: Gérants : Dumoulin Bernard</xs:documentation>
+																						</xs:annotation>
+																					</xs:element>
+																				</xs:sequence>
+																			</xs:complexType>
+																		</xs:element>
+																		<xs:element name="personnePhysique">
+																			<xs:complexType>
+																				<xs:sequence>
+																					<xs:choice>
+																						<xs:element name="numeroImmatriculation" type="NumeroImmatriculation_Type"/>
+																						<xs:element name="nonInscrit" type="Alpha_Type"/>
+																					</xs:choice>
+																					<xs:element name="nom">
+																						<xs:annotation>
+																							<xs:documentation>Nom de famille (naissance)</xs:documentation>
+																						</xs:annotation>
+																						<xs:simpleType>
+																							<xs:restriction base="Alpha_Type">
+																								<xs:minLength value="1"/>
+																								<xs:maxLength value="60"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="prenom" maxOccurs="unbounded">
+																						<xs:annotation>
+																							<xs:documentation>Prénom</xs:documentation>
+																						</xs:annotation>
+																						<xs:simpleType>
+																							<xs:restriction base="Alpha_Type">
+																								<xs:minLength value="1"/>
+																								<xs:maxLength value="70"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="nomUsage" minOccurs="0">
+																						<xs:annotation>
+																							<xs:documentation>Nom d'usage</xs:documentation>
+																						</xs:annotation>
+																						<xs:simpleType>
+																							<xs:restriction base="Alpha_Type">
+																								<xs:maxLength value="60"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="pseudonyme" minOccurs="0">
+																						<xs:simpleType>
+																							<xs:restriction base="Alpha_Type">
+																								<xs:maxLength value="60"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="nomCommercial" minOccurs="0">
+																						<xs:simpleType>
+																							<xs:restriction base="AlphaNum_Type"/>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="nationnalite" type="Alpha_Type" minOccurs="0"/>
+																				</xs:sequence>
+																			</xs:complexType>
+																		</xs:element>
+																	</xs:choice>
+																	<xs:element name="capital" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Capital de la société</xs:documentation>
+																		</xs:annotation>
+																		<xs:complexType>
+																			<xs:choice>
+																				<xs:sequence>
+																					<xs:element name="montantCapital">
+																						<xs:annotation>
+																							<xs:documentation>Montant du capital</xs:documentation>
+																						</xs:annotation>
+																						<xs:simpleType>
+																							<xs:restriction base="xs:decimal">
+																								<xs:fractionDigits value="2"/>
+																							</xs:restriction>
+																						</xs:simpleType>
+																					</xs:element>
+																					<xs:element name="devise" type="Devise_Type">
+																						<xs:annotation>
+																							<xs:documentation>Devise (conforme à la norme ISO 4217)</xs:documentation>
+																						</xs:annotation>
+																					</xs:element>
+																				</xs:sequence>
+																				<xs:element name="capitalVariable">
+																					<xs:annotation>
+																						<xs:documentation>Capital variable</xs:documentation>
+																					</xs:annotation>
+																					<xs:simpleType>
+																						<xs:restriction base="AlphaNum_Type"/>
+																					</xs:simpleType>
+																				</xs:element>
+																			</xs:choice>
+																		</xs:complexType>
+																	</xs:element>
+																	<xs:element name="adresse" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Adresse</xs:documentation>
+																		</xs:annotation>
+																		<xs:complexType>
+																			<xs:choice>
+																				<xs:element name="france" type="AdresseFrance_Type">
+																					<xs:annotation>
+																						<xs:documentation>Adresse en France de la société </xs:documentation>
+																					</xs:annotation>
+																				</xs:element>
+																				<xs:element name="etranger" type="AdresseEtranger_Type">
+																					<xs:annotation>
+																						<xs:documentation>Adresse à l'étranger</xs:documentation>
+																					</xs:annotation>
+																				</xs:element>
+																			</xs:choice>
+																		</xs:complexType>
+																	</xs:element>
+																</xs:sequence>
+															</xs:complexType>
+														</xs:element>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+										</xs:sequence>
+										<xs:element name="etablissement" minOccurs="0" maxOccurs="unbounded">
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="origineFonds" type="AlphaNum_Type" minOccurs="0">
+														<xs:annotation>
+															<xs:documentation>Origine du fonds
+Ex : Fonds principal acquis par achat au prix stipulé de 28 940 euros, Cette société se constitue, Moitié indivise dépendante d'un fonds complémentaire acquise par apport au montant évalué à 55 000 euros, Création, Fonds acquis par achat, ...</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+													<xs:element name="qualiteEtablissement" type="Alpha_Type" minOccurs="0">
+														<xs:annotation>
+															<xs:documentation>Siège social, Etablissement principal, Etablissemennt complémentaire, ..., Fonds complémentaire, Fonds secondaire</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+													<xs:element name="activite" type="AlphaNum_Type" minOccurs="0"/>
+													<xs:element name="enseigne" type="AlphaNum_Type" minOccurs="0"/>
+													<xs:element name="adresse" type="AdresseFrance_Type" minOccurs="0"/>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+										<xs:choice minOccurs="0" maxOccurs="unbounded">
+											<xs:element name="precedentProprietairePM">
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name="denomination" type="NomDenomination_Type"/>
+														<xs:choice minOccurs="0">
+															<xs:element name="numeroImmatriculation" type="NumeroImmatriculation_Type"/>
+															<xs:element name="nonInscrit" type="Alpha_Type"/>
+														</xs:choice>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+											<xs:element name="precedentProprietairePP">
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name="nature" minOccurs="0">
+															<xs:annotation>
+																<xs:documentation>Héritier, indivisaire</xs:documentation>
+															</xs:annotation>
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:element name="nom">
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																	<xs:maxLength value="60"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:element name="prenom" maxOccurs="unbounded">
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																	<xs:maxLength value="70"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:element name="nomUsage" minOccurs="0">
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																	<xs:maxLength value="60"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:choice minOccurs="0">
+															<xs:element name="numeroImmatriculation" type="NumeroImmatriculation_Type"/>
+															<xs:element name="nonInscrit" type="Alpha_Type"/>
+														</xs:choice>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+										</xs:choice>
+										<xs:choice minOccurs="0" maxOccurs="unbounded">
+											<xs:element name="precedentExploitantPM">
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name="denomination" type="NomDenomination_Type"/>
+														<xs:choice minOccurs="0">
+															<xs:element name="numeroImmatriculation" type="NumeroImmatriculation_Type"/>
+															<xs:element name="nonInscrit" type="Alpha_Type"/>
+														</xs:choice>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+											<xs:element name="precedentExploitantPP">
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name="nature" minOccurs="0">
+															<xs:annotation>
+																<xs:documentation>Héritier, indivisaire</xs:documentation>
+															</xs:annotation>
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:element name="nom">
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																	<xs:maxLength value="60"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:element name="prenom" maxOccurs="unbounded">
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																	<xs:maxLength value="70"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:element name="nomUsage" minOccurs="0">
+															<xs:simpleType>
+																<xs:restriction base="Alpha_Type">
+																	<xs:minLength value="1"/>
+																	<xs:maxLength value="60"/>
+																</xs:restriction>
+															</xs:simpleType>
+														</xs:element>
+														<xs:choice minOccurs="0">
+															<xs:element name="numeroImmatriculation" type="NumeroImmatriculation_Type"/>
+															<xs:element name="nonInscrit" type="Alpha_Type"/>
+														</xs:choice>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+										</xs:choice>
+										<xs:element name="parutionAvisPrecedent" minOccurs="0">
+											<xs:annotation>
+												<xs:documentation>Information sur l'avis à rectifier</xs:documentation>
+											</xs:annotation>
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="nomPublication" type="Alpha_Type"/>
+													<xs:element name="numeroParution" type="Parution_Type">
+														<xs:annotation>
+															<xs:documentation>Numéro de la parution précédente</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+													<xs:element name="dateParution" type="AlphaNum_Type">
+														<xs:annotation>
+															<xs:documentation>Date de la parution précédente</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+													<xs:element name="numeroAnnonce" type="Num_Type">
+														<xs:annotation>
+															<xs:documentation>Numéro de l'avis dans la parution précédente</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="acte">
+											<xs:complexType>
+												<xs:choice>
+													<xs:element name="creation">
+														<xs:annotation>
+															<xs:documentation/>
+														</xs:annotation>
+														<xs:complexType mixed="true">
+															<xs:sequence minOccurs="0">
+																<xs:element name="dateImmatriculation" type="Date_Type" minOccurs="0"/>
+																<xs:element name="categorieCreation" type="AlphaNum_Type"/>
+																<xs:element name="dateCommencementActivite" type="Date_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Date de début d'activité</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+																<xs:element name="descriptif" type="AlphaNum_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Descriptif de la modification</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+															</xs:sequence>
+														</xs:complexType>
+													</xs:element>
+													<xs:element name="immatriculation">
+														<xs:complexType mixed="true">
+															<xs:sequence minOccurs="0">
+																<xs:element name="dateImmatriculation" type="Date_Type" minOccurs="0"/>
+																<xs:element name="categorieImmatriculation" type="AlphaNum_Type"/>
+																<xs:element name="dateEffet" type="AlphaNum_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Date d'effet utilisée pour les greffes dépendants du Ministère de la Justice</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+																<xs:element name="dateCommencementActivite" type="Date_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Date de début d'activité</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+																<xs:element name="descriptif" type="AlphaNum_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Descriptif de la modification</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+															</xs:sequence>
+														</xs:complexType>
+													</xs:element>
+													<xs:element name="vente">
+														<xs:complexType mixed="true">
+															<xs:sequence minOccurs="0">
+																<xs:element name="dateImmatriculation" type="Date_Type" minOccurs="0"/>
+																<xs:element name="categorieVente" type="AlphaNum_Type"/>
+																<xs:element name="dateEffet" type="AlphaNum_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Date d'effet utilisée pour les greffes dépendants du Ministère de la Justice</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+																<xs:element name="dateCommencementActivite" type="Date_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Date de début d'activité</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+																<xs:element name="journal" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Journal d'annonces légales</xs:documentation>
+																	</xs:annotation>
+																	<xs:complexType>
+																		<xs:sequence>
+																			<xs:element name="titre" type="AlphaNum_Type"/>
+																			<xs:element name="date" type="Date_Type"/>
+																		</xs:sequence>
+																	</xs:complexType>
+																</xs:element>
+																<xs:choice maxOccurs="2">
+																	<xs:element name="opposition" type="AlphaNum_Type"/>
+																	<xs:element name="declarationCreance" type="AlphaNum_Type"/>
+																</xs:choice>
+																<xs:element name="descriptif" type="AlphaNum_Type" minOccurs="0">
+																	<xs:annotation>
+																		<xs:documentation>Descriptif de la modification</xs:documentation>
+																	</xs:annotation>
+																</xs:element>
+															</xs:sequence>
+														</xs:complexType>
+													</xs:element>
+												</xs:choice>
+											</xs:complexType>
+										</xs:element>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+	<!-- date -->
+	<xs:simpleType name="Date_Type">
+		<xs:annotation>
+			<xs:documentation>type simple format date YYYY-MM-DD</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:date">
+			<xs:pattern value="....-..-.."/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DateHeure_Type">
+		<xs:annotation>
+			<xs:documentation>format YYYY-MM-DDTHH:MM:SS</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:dateTime">
+			<xs:pattern value="....-..-..T..:..:.."/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- string -->
+	<xs:simpleType name="Alpha_Type">
+		<xs:annotation>
+			<xs:documentation>type A :  tous les caractères, toutes les pontuations, tous les symboles, [ \p{M}\p{P}\p{S}\p{L}\p{Z}\p{C} &amp; &lt; &gt;]*</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[ \p{M}\p{P}\p{S}\p{L}\p{Z}\p{C} ]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="AlphaNum_Type">
+		<xs:annotation>
+			<xs:documentation>type AN : tous les caractères, tous les chiffres, toutes les pontuations, tous les symboles, [ \p{M}\p{P}\p{S}\p{L}\p{N}\p{Z}\p{C} &amp; &lt; &gt;]*</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[\p{M}\p{P}\p{S}\p{L}\p{N}\p{Z}\p{C}]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- number -->
+	<xs:simpleType name="Num_Type">
+		<xs:annotation>
+			<xs:documentation>type N : tous les chiffres</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[\d]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- technique -->
+	<xs:simpleType name="Version_Type">
+		<xs:annotation>
+			<xs:documentation>VXX (XX=num de version)</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:length value="3"/>
+			<xs:pattern value="V\d{2}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- fonctionnel -->
+	<xs:simpleType name="NomDenomination_Type">
+		<xs:annotation>
+			<xs:documentation>type anySimpleType</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="1000"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NomCommercial_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de AlphaNum_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="70"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Sigle_Type">
+		<xs:annotation>
+			<xs:documentation>type anySimpleType</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Activite_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de AlphaNum_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type"/>
+	</xs:simpleType>
+	<xs:simpleType name="CodePostal_Type">
+		<xs:annotation>
+			<xs:documentation>Code Postal</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="Num_Type">
+			<xs:length value="5"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Departement_Type">
+		<xs:annotation>
+			<xs:documentation>code département</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="2"/>
+			<xs:maxLength value="3"/>
+			<xs:pattern value="2A|2B|[0-2]{1}[1-9]{1}|10|[3-8]{1}\d{1}|[9]{1}[0-5]{1}|(97[1-6]{1})|98[4-8]{1}|99"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NumeroGreffe_Type">
+		<xs:annotation>
+			<xs:documentation>code Greffe</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="Num_Type">
+			<xs:minLength value="4"/>
+			<xs:maxLength value="6"/>
+			<xs:pattern value="\d{4,5}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NomGreffe_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de Alpha_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="Alpha_Type">
+			<xs:minLength value="1"/>
+			<xs:maxLength value="60"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="StatutRCSPP_Type">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="A"/>
+			<xs:enumeration value="F"/>
+			<xs:enumeration value="AC"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="StatutRCSPM_Type">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="B"/>
+			<xs:enumeration value="C"/>
+			<xs:enumeration value="D"/>
+			<xs:enumeration value="F"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Parution_Type">
+		<xs:restriction base="Num_Type">
+			<xs:length value="8"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Devise_Type">
+		<xs:restriction base="iso4217:CurrencyCodeContentType"/>
+	</xs:simpleType>
+	<xs:complexType name="AdresseEtranger_Type">
+		<xs:sequence>
+			<xs:element name="adresse">
+				<xs:annotation>
+					<xs:documentation>Nom d'adresse à l'étranger</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="1000"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="pays" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Nom du pays</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="Alpha_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="50"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="AdresseFrance_Type">
+		<xs:annotation>
+			<xs:documentation/>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="numeroVoie" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Numéro de la voie
+Ex : 4</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="10"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="typeVoie" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Type de la voie
+Ex : rue</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="Alpha_Type">
+						<xs:minLength value="1"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="nomVoie" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Nom de la voie
+Ex : d'Enfer</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="1000" fixed="false"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="complGeographique" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Complément gépgraphique
+Ex : Résidence Bel-Air</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="1000"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="BP" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Boîte postale
+Ex : BP 14192</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="8"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="localite" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Localité
+Ex : Saint-Chéron</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="Alpha_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="50"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="codePostal" type="CodePostal_Type">
+				<xs:annotation>
+					<xs:documentation>Code Postal
+Ex : 51290</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="ville">
+				<xs:annotation>
+					<xs:documentation>Ville/Bureau distributeur
+Ex : Saint-Rémy-en-Bouzemont-Saint-Genest-et-Isson</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:minLength value="1"/>
+						<xs:maxLength value="50"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="NumeroImmatriculation_Type">
+		<xs:annotation>
+			<xs:documentation>NNN NNN NNN RCS XXXXXX avec NNN NNN NNN N° d'identification et XXXXXXX Greffe d'immatriculation du dossier (Ex : 324 568 789 RCS Paris)</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="numeroIdentification">
+				<xs:annotation>
+					<xs:documentation>N° d'identification au format NNN NNN NNN</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="xs:string">
+						<xs:length value="11"/>
+						<xs:pattern value="\d{3} \d{3} \d{3}"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="codeRCS">
+				<xs:annotation>
+					<xs:documentation>valeur fixée à "RCS"</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="Alpha_Type">
+						<xs:length value="3"/>
+						<xs:enumeration value="RCS"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="nomGreffeImmat" type="NomGreffe_Type">
+				<xs:annotation>
+					<xs:documentation>Greffe d'immatriculation du dossier </xs:documentation>
+				</xs:annotation>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+</xs:schema>
