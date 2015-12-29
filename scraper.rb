@@ -349,16 +349,16 @@ class FR_BODACC < Framework::Processor
           record[:other_attributes][:department_number] = value(node, 'numeroDepartement')
           record[:other_attributes][:tribunal] = value(node, 'tribunal').gsub("\n", " ")
 
-          record[:other_attributes][:entities] = node.xpath('/personnes/personne').map do |personne|
+          record[:other_attributes][:entities] = node.xpath('./personnes/personne').map do |personne|
             entity = {}
 
             subnode = one(personne, 'personneMorale')
-            entity[:person] = moral_person(subnode)
+            entity[:entity] = moral_person(subnode)
             subnode = one(personne, 'personnePhysique')
-            if person
+            if entity[:entity] && subnode
               warn("expected only one of personneMorale or personnePhysique")
             else
-              entity[:person] = physical_person(subnode)
+              entity[:entity] = physical_person(subnode)
             end
 
             subnode = one(personne, 'capital')
