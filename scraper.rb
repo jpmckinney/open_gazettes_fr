@@ -326,36 +326,43 @@ class FR_BODACC < Framework::Processor
           sample_date: retrieved_at,
           retrieved_at: retrieved_at,
           confidence: 'HIGH',
+          other_attributes: {},
         }
 
         path = format == 'PCL' ? 'annonces/annonce' : 'listeAvis/avis'
         document.xpath("//#{path}").each do |node|
-          notice_type = one(node, 'typeAnnonce/*').name # "annonce", "rectificatif", "annulation"
-          uid = value(node, 'nojo')
-          identifier = value(node, 'numeroAnnonce', format: :integer)
-          department_number = value(node, 'numeroDepartement')
-          tribunal = value(node, 'tribunal').gsub("\n", " ")
+          record = Marshal.load(Marshal.dump(default_record))
 
-          node.xpath('/personnes/personne').each do |personne|
+          record[:other_attributes][:notice_type] = one(node, 'typeAnnonce/*').name # "annonce", "rectificatif", "annulation"
+          record[:uid] = value(node, 'nojo')
+          record[:identifier] = value(node, 'numeroAnnonce', format: :integer)
+          record[:other_attributes][:department_number] = value(node, 'numeroDepartement')
+          record[:other_attributes][:tribunal] = value(node, 'tribunal').gsub("\n", " ")
+
+          record[:other_attributes][:entities] = node.xpath('/personnes/personne').map do |personne|
+            entity = {}
+
             subnode = one(personne, 'personneMorale')
-            person = moral_person(subnode)
+            entity[:person] = moral_person(subnode)
             subnode = one(personne, 'personnePhysique')
             if person
               warn("expected only one of personneMorale or personnePhysique")
             else
-              person = physical_person(subnode)
+              entity[:person] = physical_person(subnode)
             end
 
             subnode = one(personne, 'capital')
             if subnode
-              amount_value = value(subnode, 'montantCapital')
-              currency = value(subnode, 'devise')
-              amount = value(subnode, 'capitalVariable')
+              entity[:capital] = {
+                amount_value: value(subnode, 'montantCapital'),
+                currency: value(subnode, 'devise'),
+                amount: value(subnode, 'capitalVariable'),
+              }
             end
 
             subnode = one(personne, 'adresse')
             if subnode
-              address = if subnode.at_xpath('./france')
+              entity[:address] = if subnode.at_xpath('./france')
                 france_address(subnode, 'france')
               elsif subnode.at_xpath('./etranger')
                 {
@@ -364,10 +371,12 @@ class FR_BODACC < Framework::Processor
                 }
               end
             end
+
+            entity
           end
 
           subnodes = node.xpath('./etablissement')
-          establishment = subnodes.map do |subnode|
+          record[:other_attributes][:establishments] = subnodes.map do |subnode|
             {
               origin: value(subnode, 'origineFonds'),
               establishment_type: value(subnode, 'qualiteEtablissement'),
@@ -379,58 +388,75 @@ class FR_BODACC < Framework::Processor
 
           # <precedentProprietairePM> <precedentProprietairePP>
           subnodes = node.xpath('./precedentProprietairePM')
-          previous_owners = subnodes.map do |subnode|
+          record[:other_attributes][:previous_owners] = subnodes.map do |subnode|
             moral_person(subnode)
           end
           subnodes = node.xpath('./precedentProprietairePP')
-          previous_owners += subnodes.map do |subnode|
+          record[:other_attributes][:previous_owners] += subnodes.map do |subnode|
             physical_person(subnode)
           end
 
           # <precedentExploitantPM> <precedentExploitantPP>
           subnodes = node.xpath('./precedentExploitantPM')
-          previous_operators = subnodes.map do |subnode|
+          record[:other_attributes][:previous_operators] = subnodes.map do |subnode|
             moral_person(subnode)
           end
           subnodes = node.xpath('./precedentExploitantPP')
-          previous_operators += subnodes.map do |subnode|
+          record[:other_attributes][:previous_operators] += subnodes.map do |subnode|
             physical_person(subnode)
           end
 
           # <parutionAvisPrecedent>
           subnode = one(node, 'parutionAvisPrecedent')
           if subnode
-            prior_publication = value(subnode, 'nomPublication', required: true, enum: ['BODACC A', 'BODACC B', 'BODACC C'])
-            prior_issue_number = value(subnode, 'numeroParution', required: true)
-            prior_date_published = value(subnode, 'dateParution', required: true, format: :date, pattern: '%e %B %Y')
-            prior_identifier = value(subnode, 'numeroAnnonce', required: true, type: :integer)
+            record[:other_attributes][:previous] = {
+              issue: {
+                identifier: value(subnode, 'numeroParution', required: true),
+                edition_id: value(subnode, 'nomPublication', required: true, enum: ['BODACC A', 'BODACC B', 'BODACC C']),
+              },
+              date_published: value(subnode, 'dateParution', required: true, format: :date, pattern: '%e %B %Y'),
+              identifier: value(subnode, 'numeroAnnonce', required: true, type: :integer),
+            }
           end
 
           # <acte>
           subnode = one(node, 'acte/*')
           act_type = subnode.name # "creation", "immatriculation", "vente"
-          classification = value(subnode, "categorie#{act_type.capitalize}", required: act_type == 'creation') # required by schema, but sometimes missing
-          date_registered = value(subnode, 'dateImmatriculation', format: :date)
-          start_date = value(subnode, 'dateCommencementActivite', format: :date)
-          description = value(subnode, 'descriptif')
+          classification = value(subnode, "categorie#{act_type.capitalize}", required: act_type == 'creation') # required by XML schema, but sometimes missing
+          record[:other_attributes][:act] = {
+            type: act_type,
+            date_registered: value(subnode, 'dateImmatriculation', format: :date),
+            start_date: value(subnode, 'dateCommencementActivite', format: :date),
+          }
+          record[:description] = value(subnode, 'descriptif')
 
           if ['immatriculation', 'vente'].include?(act_type)
-            effective_date = value(subnode, 'dateEffet', format: :date, pattern: '%e %B %Y')
+            record[:other_attributes][:act][:effective_date] = value(subnode, 'dateEffet', format: :date, pattern: '%e %B %Y')
           end
 
           if act_type == 'vente'
             if subnode.at_xpath('./journal')
-              journal_title = value(subnode, 'journal/titre', required: true)
-              journal_date = value(subnode, 'journal/date', required: true, format: :date)
+              record[:other_attributes][:act][:journal] = {
+                title: value(subnode, 'journal/titre', required: true),
+                date: value(subnode, 'journal/date', required: true, format: :date),
+              }
             end
 
-            opposition = value(subnode, 'opposition')
-            debt_declaration = value(subnode, 'declarationCreance')
+            record[:other_attributes][:act][:opposition] = value(subnode, 'opposition')
+            record[:other_attributes][:act][:debt_declaration] = value(subnode, 'declarationCreance')
           end
-        end
 
-        # TODO
-        # combine the variables into a hash, exclude nil values, and output
+          if classification
+            record[:classification] = [{
+              scheme: 'fr-bodacc',
+              value: classification,
+            }]
+          end
+
+          # TODO
+          # compact the record
+          puts JSON.dump(record)
+        end
       end
     else
       warn("unexpected file extension #{file.name} in BODACC/#{directory}")
