@@ -194,9 +194,14 @@ class FR_BODACC < Framework::Processor
   def scrape
     BODACCFTP.open('echanges.dila.gouv.fr') do |ftp|
       ftp.logger = @logger
+
+      info('login')
       ftp.login
 
+      info('chdir BODACC')
       ftp.chdir('BODACC')
+
+      info('nlst')
       ftp.nlst.each do |remotefile|
         # Previous years are archived as `.tar` files.
         if File.extname(remotefile) == '.tar'
@@ -227,7 +232,10 @@ class FR_BODACC < Framework::Processor
             next
           end
 
+          info("chdir #{remotefile}")
           ftp.chdir(remotefile)
+
+          info('nlst')
           ftp.nlst.each do |name|
             # I can't find a media type for LZW-compressed `.taz` files.
             url = "ftp://echanges.dila.gouv.fr#{ftp.pwd}/#{name}"
@@ -236,6 +244,8 @@ class FR_BODACC < Framework::Processor
               source_url: url,
             })
           end
+
+          info('chdir ..')
           ftp.chdir('..')
 
         elsif remotefile != 'DOCUMENTATIONS'
