@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2007 sp1 (http://www.altova.com) by SSI/CTI (JOURNAUX OFFICIELS) -->
+<!-- edited with XML Spy v4.4 U (http://www.xmlspy.com) by journal-officiel (Direction de l'Information Légale et Administrative) -->
+<!-- ****************************************************************************************************************************************************************************************** -->
+<!-- Modification de la version 3                                                                                                                                                                                                             -->
+<!--       Adresse/etranger/pays : optionnel                                                                                                                                                                                            -->
+<!--       Ajout d'une séquence de 1 à + pour (personneMorale,personnePhysique, numeroImmatriculation, nonInscrit, inscriptionRM, enseigne, activite, adresse) -->
+<!--       Ajout identifiant Reemission                                                                                                                                                                                                       -->
+<!-- Modification de la version 4                                                                                                                                                                                                             -->
+<!--       Supressiont identifiantReemission                                                                                                                                                                                             -->
+<!--       Les éléments : numeroAnnonce, numeroIdentificationRCS, codeRCS et nomGreffeImmat ont été typé.                                                                                  -->
+<!--  Modification de la version 5                                       .                                                                                  -->
+<!--       Ajout de 3 natures : Arrêts divers, Autres avis de dépôt et Autres jugements et ordonnances                                                                                                                                -->
+<!--  Modification de la version 6                                       .                                                                                  -->
+<!--       Ajout de nouvelles natures 
+<!_  31/07/09  Modification nature "Autres jugements et ordonnances" en "Autre jugement et ordonnance"   ->                                                                                                                     -->
+<!-- 
+ V10 11/09/09  Ajouts de 2 natures : 
+- Jugement prononçant la résolution du plan de sauvegarde et le redressement judiciaire
+- Dépôt de l’état des créances et du projet de répartition
+ -->
+<!--  Modification de la version 11                                       .                                                                                  -->
+<!--       Changement du numéro de département de la Mayotte en 976          -->
+<!-- ****************************************************************************************************************************************************************************************** -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:element name="PCL_REDIFF">
+		<xs:annotation>
+			<xs:documentation>Composant Annonce Procédure Collective pour les Reffuseurs</xs:documentation>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="parution" type="Parution_Type">
+					<xs:annotation>
+						<xs:documentation>Numero de la parution</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="dateParution" type="AlphaNum_Type">
+					<xs:annotation>
+						<xs:documentation>Date de la parution</xs:documentation>
+					</xs:annotation>
+				</xs:element>
+				<xs:element name="annonces">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="annonce" maxOccurs="unbounded">
+								<xs:complexType>
+									<xs:sequence>
+										<xs:element name="typeAnnonce">
+											<xs:annotation>
+												<xs:documentation>Type de l'annonce</xs:documentation>
+											</xs:annotation>
+											<xs:complexType>
+												<xs:choice>
+													<xs:element name="creation">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+													<xs:element name="rectificatif">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+													<xs:element name="annulation">
+														<xs:simpleType>
+															<xs:restriction base="AlphaNum_Type">
+																<xs:length value="0"/>
+															</xs:restriction>
+														</xs:simpleType>
+													</xs:element>
+												</xs:choice>
+											</xs:complexType>
+										</xs:element>
+										<xs:element name="nojo">
+											<xs:annotation>
+												<xs:documentation>Numéro J.O.</xs:documentation>
+											</xs:annotation>
+											<xs:simpleType>
+												<xs:restriction base="AlphaNum_Type">
+													<xs:length value="15"/>
+												</xs:restriction>
+											</xs:simpleType>
+										</xs:element>
+										<xs:element name="numeroAnnonce" type="Num_Type">
+											<xs:annotation>
+												<xs:documentation>Numéro de l'avis dans la parution</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:element name="numeroDepartement" type="Departement_Type">
+											<xs:annotation>
+												<xs:documentation>N° de département du Greffe</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:element name="tribunal" type="AlphaNum_Type">
+											<xs:annotation>
+												<xs:documentation>Code Greffe qui a procédé à l'avis - A transmettre dans le fichier Retour</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:element name="identifiantClient" type="AlphaNum_Type">
+											<xs:annotation>
+												<xs:documentation>Identifiant unique</xs:documentation>
+											</xs:annotation>
+										</xs:element>
+										<xs:sequence maxOccurs="unbounded">
+											<xs:choice>
+												<xs:element name="personneMorale">
+													<xs:complexType>
+														<xs:sequence>
+															<xs:element name="denomination" type="NomDenomination_Type">
+																<xs:annotation>
+																	<xs:documentation>Dénomination</xs:documentation>
+																</xs:annotation>
+															</xs:element>
+															<xs:element name="formeJuridique" type="AlphaNum_Type" minOccurs="0">
+																<xs:annotation>
+																	<xs:documentation>Forme juridique (Ex : Société Anonyme, SARL, EURL,...)</xs:documentation>
+																</xs:annotation>
+															</xs:element>
+															<xs:element name="sigle" type="Sigle_Type" minOccurs="0">
+																<xs:annotation>
+																	<xs:documentation>Sigle</xs:documentation>
+																</xs:annotation>
+															</xs:element>
+														</xs:sequence>
+													</xs:complexType>
+												</xs:element>
+												<xs:element name="personnePhysique">
+													<xs:complexType>
+														<xs:sequence>
+															<xs:element name="nom" type="Alpha_Type">
+																<xs:annotation>
+																	<xs:documentation>Nom de famille (naissance)</xs:documentation>
+																</xs:annotation>
+															</xs:element>
+															<xs:element name="prenom" type="Alpha_Type" maxOccurs="unbounded">
+																<xs:annotation>
+																	<xs:documentation>Prénom</xs:documentation>
+																</xs:annotation>
+															</xs:element>
+															<xs:element name="nomUsage" type="Alpha_Type" minOccurs="0">
+																<xs:annotation>
+																	<xs:documentation>Nom d'usage</xs:documentation>
+																</xs:annotation>
+															</xs:element>
+														</xs:sequence>
+													</xs:complexType>
+												</xs:element>
+											</xs:choice>
+											<xs:choice>
+												<xs:element name="numeroImmatriculation">
+													<xs:complexType>
+														<xs:sequence>
+															<xs:element name="numeroIdentificationRCS">
+																<xs:annotation>
+																	<xs:documentation>N° d'identification au format NNN NNN NNN ( A transmettre dans le fichier de retour des parutions)</xs:documentation>
+																</xs:annotation>
+																<xs:simpleType>
+																	<xs:restriction base="xs:token">
+																		<xs:length value="11"/>
+																	</xs:restriction>
+																</xs:simpleType>
+															</xs:element>
+															<xs:element name="codeRCS">
+																<xs:annotation>
+																	<xs:documentation>valeur fixée à "RCS"</xs:documentation>
+																</xs:annotation>
+																<xs:simpleType>
+																	<xs:restriction base="Alpha_Type">
+																		<xs:length value="3"/>
+																	</xs:restriction>
+																</xs:simpleType>
+															</xs:element>
+															<xs:element name="nomGreffeImmat" type="NomGreffe_Type">
+																<xs:annotation>
+																	<xs:documentation>Greffe d'immatriculation du dossier </xs:documentation>
+																</xs:annotation>
+															</xs:element>
+														</xs:sequence>
+													</xs:complexType>
+												</xs:element>
+												<xs:element name="nonInscrit" type="Alpha_Type"/>
+											</xs:choice>
+											<xs:element name="inscriptionRM" minOccurs="0">
+												<xs:complexType>
+													<xs:sequence>
+														<xs:element name="numeroIdentificationRM" type="AlphaNum_Type"/>
+														<xs:element name="codeRM" type="Alpha_Type"/>
+														<xs:element name="numeroDepartement" type="Departement_Type"/>
+													</xs:sequence>
+												</xs:complexType>
+											</xs:element>
+											<xs:element name="enseigne" type="AlphaNum_Type" minOccurs="0"/>
+											<xs:element name="activite" type="AlphaNum_Type" minOccurs="0"/>
+											<xs:element name="adresse" minOccurs="0">
+												<xs:annotation>
+													<xs:documentation>Adresse</xs:documentation>
+												</xs:annotation>
+												<xs:complexType>
+													<xs:choice>
+														<xs:element name="france">
+															<xs:annotation>
+																<xs:documentation>Adresse en France de la société </xs:documentation>
+															</xs:annotation>
+															<xs:complexType>
+																<xs:sequence>
+																	<xs:element name="numeroVoie" type="AlphaNum_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Code Greffe qui a procédé à l'avis - A transmettre dans le fichier Retour</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="typeVoie" type="Alpha_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Type de la voie
+Ex : rue</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="nomVoie" type="AlphaNum_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Nom de la voie
+Ex : d'Enfer </xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="complGeographique" type="AlphaNum_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Complément gépgraphique
+Ex : Résidence Bel-Air</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="BP" type="AlphaNum_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Boîte postale
+Ex : 192</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="localite" type="Alpha_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Localité
+Ex : Saint-Chéron</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="codePostal" type="CodePostal_Type">
+																		<xs:annotation>
+																			<xs:documentation>Code Postal
+Ex : 51290</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="ville" type="AlphaNum_Type">
+																		<xs:annotation>
+																			<xs:documentation>Ville/Bureau distributeur
+Ex : Saint-Rémy-en-Bouzemont-Saint-Genest-et-Isson</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																</xs:sequence>
+															</xs:complexType>
+														</xs:element>
+														<xs:element name="etranger">
+															<xs:annotation>
+																<xs:documentation>Adresse à l'étranger</xs:documentation>
+															</xs:annotation>
+															<xs:complexType>
+																<xs:sequence>
+																	<xs:element name="adresse" type="AlphaNum_Type">
+																		<xs:annotation>
+																			<xs:documentation>Nom d'adresse à l'étranger</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																	<xs:element name="pays" type="Alpha_Type" minOccurs="0">
+																		<xs:annotation>
+																			<xs:documentation>Nom du pays</xs:documentation>
+																		</xs:annotation>
+																	</xs:element>
+																</xs:sequence>
+															</xs:complexType>
+														</xs:element>
+													</xs:choice>
+												</xs:complexType>
+											</xs:element>
+										</xs:sequence>
+										<xs:choice>
+											<xs:element name="jugement" type="Jugement_Type">
+												<xs:annotation>
+													<xs:documentation>Publicité</xs:documentation>
+												</xs:annotation>
+											</xs:element>
+											<xs:element name="jugementAnnule" type="Jugement_Type"/>
+										</xs:choice>
+										<xs:element name="parutionAvisPrecedent" minOccurs="0">
+											<xs:annotation>
+												<xs:documentation>Information sur l'avis à rectifier</xs:documentation>
+											</xs:annotation>
+											<xs:complexType>
+												<xs:sequence>
+													<xs:element name="nomPublication" type="Alpha_Type"/>
+													<xs:element name="numeroParution" type="Parution_Type">
+														<xs:annotation>
+															<xs:documentation>Numéro de la parution précédente</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+													<xs:element name="dateParution" type="AlphaNum_Type">
+														<xs:annotation>
+															<xs:documentation>Date de la parution précédente</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+													<xs:element name="numeroAnnonce" type="Num_Type">
+														<xs:annotation>
+															<xs:documentation>Numéro de l'avis dans la parution précédente</xs:documentation>
+														</xs:annotation>
+													</xs:element>
+												</xs:sequence>
+											</xs:complexType>
+										</xs:element>
+									</xs:sequence>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+	<!-- date -->
+	<xs:simpleType name="Date_Type">
+		<xs:annotation>
+			<xs:documentation>type simple format date YYYY-MM-DD</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:date">
+			<xs:pattern value="....-..-.."/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="DateHeure_Type">
+		<xs:annotation>
+			<xs:documentation>format YYYY-MM-DDTHH:MM:SS</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:dateTime">
+			<xs:pattern value="....-..-..T..:..:.."/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- string -->
+	<xs:simpleType name="Alpha_Type">
+		<xs:annotation>
+			<xs:documentation>type A :  tous les caractères, toutes les pontuations, tous les symboles, [ \p{M}\p{P}\p{S}\p{L}\p{Z}\p{C} &amp; &lt; &gt;]*</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[ \p{M}\p{P}\p{S}\p{L}\p{Z}\p{C} ]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="AlphaNum_Type">
+		<xs:annotation>
+			<xs:documentation>type AN : tous les caractères, tous les chiffres, toutes les pontuations, tous les symboles, [ \p{M}\p{P}\p{S}\p{L}\p{N}\p{Z}\p{C} &amp; &lt; &gt;]*</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[\p{M}\p{P}\p{S}\p{L}\p{N}\p{Z}\p{C}]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- number -->
+	<xs:simpleType name="Num_Type">
+		<xs:annotation>
+			<xs:documentation>type N : tous les chiffres</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:pattern value="[\d]*"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- technique -->
+	<xs:simpleType name="Version_Type">
+		<xs:annotation>
+			<xs:documentation>VXX (XX=num de version)</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="xs:token">
+			<xs:length value="3"/>
+			<xs:pattern value="V\d{2}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<!-- fonctionnel -->
+	<xs:simpleType name="NomDenomination_Type">
+		<xs:annotation>
+			<xs:documentation>type anySimpleType</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NomCommercial_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de AlphaNum_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Enseigne_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de AlphaNum_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type"/>
+	</xs:simpleType>
+	<xs:simpleType name="Sigle_Type">
+		<xs:annotation>
+			<xs:documentation>type anySimpleType</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Activite_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de AlphaNum_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type"/>
+	</xs:simpleType>
+	<xs:simpleType name="CodePostal_Type">
+		<xs:annotation>
+			<xs:documentation>Code Postal</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="Num_Type">
+			<xs:length value="5"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Departement_Type">
+		<xs:annotation>
+			<xs:documentation>code département</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="AlphaNum_Type">
+			<xs:minLength value="2"/>
+			<xs:maxLength value="3"/>
+			<xs:pattern value="2A|2B|[0-2]{1}[1-9]{1}|10|[3-8]{1}\d{1}|[9]{1}[0-5]{1}|(97[1-6]{1})|98[4-8]{1}|99"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NumeroGreffe_Type">
+		<xs:annotation>
+			<xs:documentation>code Greffe</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="Num_Type">
+			<xs:minLength value="4"/>
+			<xs:maxLength value="6"/>
+			<xs:pattern value="\d{4,5}"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="NomGreffe_Type">
+		<xs:annotation>
+			<xs:documentation>dérivé de Alpha_Type</xs:documentation>
+		</xs:annotation>
+		<xs:restriction base="Alpha_Type">
+			<xs:minLength value="1"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="StatutRCSPP_Type">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="A"/>
+			<xs:enumeration value="F"/>
+			<xs:enumeration value="AC"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="StatutRCSPM_Type">
+		<xs:restriction base="xs:token">
+			<xs:enumeration value="B"/>
+			<xs:enumeration value="C"/>
+			<xs:enumeration value="D"/>
+			<xs:enumeration value="F"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Parution_Type">
+		<xs:restriction base="Num_Type">
+			<xs:length value="8"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:simpleType name="Devise_Type">
+		<xs:restriction base="Alpha_Type">
+			<xs:enumeration value="EUR"/>
+		</xs:restriction>
+	</xs:simpleType>
+	<xs:complexType name="Jugement_Type">
+		<xs:annotation>
+			<xs:documentation>Annonce de Procédure Collective</xs:documentation>
+		</xs:annotation>
+		<xs:sequence>
+			<xs:element name="famille">
+				<xs:annotation>
+					<xs:documentation>Famille de jugement
+Ex : Jugement d'ouverture, extrait de jugement, ...</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="AlphaNum_Type">
+						<xs:enumeration value="Jugement d'ouverture"/>
+						<xs:enumeration value="Jugement prononçant"/>
+						<xs:enumeration value="Arrêt de la Cour d'Appel"/>
+						<xs:enumeration value="Extrait de jugement"/>
+						<xs:enumeration value="Avis de dépôt"/>
+						<xs:enumeration value="Jugement de clôture"/>
+						<xs:enumeration value="Loi de 1967"/>
+						<xs:enumeration value="Rétractation sur tierce opposition"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="nature">
+				<xs:annotation>
+					<xs:documentation>Nature du jugement
+Ex : Jugement d'ouverture de redressement judiciaire, jugement nommanbt un organe, ...</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="xs:token">
+						<xs:minLength value="1"/>
+						<xs:enumeration value="Jugement d'homologation de l'accord"/>
+						<xs:enumeration value="Jugement de résolution de l'accord homologué"/>
+						<xs:enumeration value="Jugement d'ouverture d'une procédure de sauvegarde"/>
+						<xs:enumeration value="Jugement d'extension d'une procédure de sauvegarde"/>
+						<xs:enumeration value="Jugement de conversion en redressement judiciaire de la procédure de sauvegarde"/>
+						<xs:enumeration value="Jugement de conversion en liquidation judiciaire de la procédure de sauvegarde"/>
+						<xs:enumeration value="Jugement mettant fin à la procédure de sauvegarde"/>
+						<xs:enumeration value="Liste des créances nées après le jugement d'ouverture d'une procédure de redressement judiciaire"/>
+						<xs:enumeration value="Liste des créances nées après le jugement d'ouverture d'une procédure de liquidation judiciaire"/>
+						<xs:enumeration value="Dépôt de l'état des créances"/>
+						<xs:enumeration value="Jugement de clôture de la procédure de sauvegarde"/>
+						<xs:enumeration value="Jugement arrêtant le plan de sauvegarde"/>
+						<xs:enumeration value="Jugement modifiant le plan de sauvegarde"/>
+						<xs:enumeration value="Jugement prononçant la résolution du plan de sauvegarde et la liquidation judiciaire"/>
+						<xs:enumeration value="Jugement prononçant la résolution du plan de sauvegarde et le redressement judiciaire"/>
+						<xs:enumeration value="Jugement d'ouverture d'une procédure de redressement judiciaire"/>
+						<xs:enumeration value="Jugement d'extension d'une procédure de redressement judiciaire"/>
+						<xs:enumeration value="Jugement modifiant la date de cessation des paiements"/>
+						<xs:enumeration value="Jugement de conversion en liquidation judiciaire"/>
+						<xs:enumeration value="Jugement mettant fin à la procédure de redressement judiciaire"/>
+						<xs:enumeration value="Jugement arrêtant un plan de cession"/>
+						<xs:enumeration value="Jugement prononçant la résolution du plan de cession et la liquidation judiciaire"/>
+						<xs:enumeration value="Jugement de plan de redressement"/>
+						<xs:enumeration value="Jugement modifiant le plan de redressement"/>
+						<xs:enumeration value="Jugement prononçant la résolution du plan de redressement et la liquidation judiciaire"/>
+						<xs:enumeration value="Jugement d'ouverture de liquidation judiciaire"/>
+						<xs:enumeration value="Jugement d'extension de liquidation judiciaire"/>
+						<xs:enumeration value="Jugement prononçant la résolution du plan de cession"/>
+						<xs:enumeration value="Dépôt de l'état de collocation"/>
+						<xs:enumeration value="Jugement de clôture pour extinction du passif"/>
+						<xs:enumeration value="Jugement de clôture pour insuffisance d'actif"/>
+						<xs:enumeration value="Jugement de clôture pour insuffisance d'actif et autorisant la reprise des poursuites individuelles"/>
+						<xs:enumeration value="Jugement autorisant la reprise des poursuites individuelles des créanciers"/>
+						<xs:enumeration value="Jugement de reprise de la procédure de liquidation judiciaire"/>
+						<xs:enumeration value="Dépôt du projet de répartition"/>
+						<xs:enumeration value="Dépôt de l'état des créances et du projet de répartition"/>
+						<xs:enumeration value="Autres avis de dépôt"/>
+						<xs:enumeration value="Ordonnance statuant sur les contestations du projet de répartition"/>
+						<xs:enumeration value="Arrêt de la cour d'appel infirmant une décision soumise à publicité"/>
+						<xs:enumeration value="Arrêts divers"/>
+						<xs:enumeration value="Jugement de désignation des organes de la procédure"/>
+						<xs:enumeration value="Jugement d'interdiction de gérer"/>
+						<xs:enumeration value="Jugement de faillite personnelle"/>
+						<xs:enumeration value="Jugement modifiant le plan de continuation"/>
+						<xs:enumeration value="Jugement modifiant le plan de cession"/>
+						<xs:enumeration value="Autre jugement et ordonnance"/>
+						<xs:enumeration value="Dépôt de l'état des créances Loi de 1985"/>
+						<xs:enumeration value="Jugement accordant un délai pour déposer la liste des créances"/>
+						<xs:enumeration value="Jugement d'interdiction de gérer Loi de 1985"/>
+						<xs:enumeration value="Jugement de faillite personnelle Loi de 1985"/>
+						<xs:enumeration value="Jugement de clôture de la liquidation des biens pour extinction du passif"/>
+						<xs:enumeration value="Jugement de clôture de la liquidation des biens pour insuffisance d'actif"/>
+						<xs:enumeration value="Rétractation de jugement d'ouverture sur tierce opposition"/>
+						<xs:enumeration value="Rétractation de prononcé de redressement judiciaire sur tierce opposition"/>
+						<xs:enumeration value="Rétractation de prononcé de liquidation judiciaire sur tierce opposition"/>
+						<xs:enumeration value="Autre jugement d'ouverture"/>
+						<xs:enumeration value="Autre jugement prononçant"/>
+						<xs:enumeration value="Autre arrêt de la Cour d'Appel"/>
+						<xs:enumeration value="Autre jugement de clôture"/>
+						<xs:enumeration value="Autre jugement de liquidation des biens"/>
+						<xs:enumeration value="Autre rétractation sur tierce opposition"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+			<xs:element name="date" type="AlphaNum_Type" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Date du jugement</xs:documentation>
+				</xs:annotation>
+			</xs:element>
+			<xs:element name="complementJugement" minOccurs="0">
+				<xs:annotation>
+					<xs:documentation>Complément du jugement</xs:documentation>
+				</xs:annotation>
+				<xs:simpleType>
+					<xs:restriction base="xs:token">
+						<xs:minLength value="1"/>
+					</xs:restriction>
+				</xs:simpleType>
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+</xs:schema>

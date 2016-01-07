@@ -45,3 +45,7 @@ Run the transformer:
 ## XML Schema
 
 On 2013-05-24, `RCI_V10.xsd` was updated to change the `maxLength` of `NomDenomination_Type` from `200` to `1000`, but the version number of the XSD file was not changed.
+
+From 2014-04-01, `Bilan_V06.xsd` adds an optional `descriptif` field under `depot`, and `PCL_V12.xsd` adds values to the `nature` code list under `jugement`.
+
+From 2015-02-16, `PCL_V13.xsd` adds a required `denominationEIRL` field under `personnePhysique`.
