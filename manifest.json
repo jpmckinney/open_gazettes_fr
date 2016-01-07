@@ -6,8 +6,15 @@
   "data_type": "primary data",
   "identifying_fields": ["uid"],
   "files": [
-    "scraper.rb"
+    "framework.rb",
+    "scraper.rb",
+    "transformer.rb"
   ],
+  "transformers": [{
+    "file": "transformer.rb",
+    "data-type": "gazette-notice",
+    "identifying_fields": ["uid"]
+  }],
   "frequency": "daily",
   "incremental": true,
   "publisher": {

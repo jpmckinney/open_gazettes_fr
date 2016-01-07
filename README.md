@@ -1,5 +1,21 @@
 ## Development
 
+The `data` directory is structured to match the output of:
+
+    wget -r -nc -P data ftp://echanges.dila.gouv.fr/BODACC/
+
+If the documentation is downloaded by `wget`, you can extract the XSD:
+
+    rake xsd
+
+And generate SVG from XSD (requires Java):
+
+    rake svg
+
+You can open the SVG files in your browser.
+
+### Primary data
+
 Run the scraper:
 
     TURBOT_ENV=development ruby scraper.rb
@@ -16,19 +32,11 @@ Start from a specific issue number:
 
     from_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
 
-The `data` directory is structured to match the output of:
+### Transformed data
 
-    wget -r ftp://echanges.dila.gouv.fr/BODACC/
+Run the transformer:
 
-If the documentation is downloaded by `wget`, extract the XSD:
-
-    rake xsd
-
-Generate SVG from XSD (requires Java):
-
-    rake svg
-
-You can open the SVG files in your browser.
+    cat scraper.out | TURBOT_ENV=development ruby transformer.rb
 
 ## Documentation
 

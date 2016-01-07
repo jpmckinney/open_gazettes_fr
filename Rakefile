@@ -32,7 +32,7 @@ task :xsd do
 
   cache = {}
 
-  # TODO: The XSD files in the pre-2011 directory are not extracted.
+  # TODO The XSD files in the pre-2011 directory are not copied.
   paths = Dir[File.expand_path(File.join('data', 'echanges.dila.gouv.fr', 'BODACC', 'DOCUMENTATIONS', '*_*', '*.zip'), Dir.pwd)].sort_by do |path|
     zip_name = File.basename(path)
 
