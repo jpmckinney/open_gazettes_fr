@@ -4,6 +4,7 @@ require_relative 'framework'
 
 require 'active_support/core_ext/hash/deep_merge'
 require 'nokogiri'
+require 'nori'
 
 class FR_BODACC < Framework::Processor
   TOP_LEVEL_NODE = {
@@ -127,7 +128,7 @@ class FR_BODACC < Framework::Processor
       if format == 'PCL'
         nodes = to_array(document.fetch('annonces').fetch('annonce'))
         xml = Nokogiri::XML(issue.fetch('other_attributes').fetch('xml'), nil, 'utf-8').xpath('/PCL_REDIFF/annonces/annonce')
-        assert("expected the number of XML nodes (#{xml.size}) to be the number of JSON nodes (#{nodes.size})"){xml.size == nodes.size}
+        assert("expected the number of XML nodes (#{xml.size}) to equal the number of JSON nodes (#{nodes.size})"){xml.size == nodes.size}
       else
         nodes = to_array(document.fetch('listeAvis').fetch('avis'))
       end
@@ -174,7 +175,7 @@ class FR_BODACC < Framework::Processor
         when 'RCS-A'
           parse_div_a(node, record)
         when 'PCL'
-          parse_pcl(xml[index], record)
+          parse_pcl(node, record, xml[index])
         when 'DIV'
           parse_div(node, record)
         when 'RCS-B'
@@ -248,7 +249,7 @@ class FR_BODACC < Framework::Processor
     subnode = node.fetch('acte').fetch(act_type) || {}
     if act_type == 'creation' # required by XML schema, but sometimes missing
       record[:classification] = [{
-        scheme: 'fr-bodacc',
+        scheme: 'fr_bodacc',
         value: subnode.fetch("categorie#{act_type.capitalize}"),
       }]
     end
@@ -281,44 +282,108 @@ class FR_BODACC < Framework::Processor
     end
   end
 
-  # TODO review schema
-  def parse_pcl(node, record)
-    if node.xpath('/personneMorale|/personnePhysique').size > 1
-      # puts node.to_s(indent: 2)
-      # puts
+  def parse_pcl(node, record, xml)
+    default_entity_properties = {
+      identifiers: [],
+      alternative_names: [],
+    }
+
+    # I have no idea what this is. The identifiers are nowhere on the internet.
+    record[:other_attributes][:client_identifier] = node.fetch('identifiantClient')
+
+    record[:subjects] = []
+
+    entity_type = nil
+    entity_properties = Marshal.load(Marshal.dump(default_entity_properties))
+
+    xml.xpath('./identifiantClient/following-sibling::*').each do |sibling|
+      # Instead of nesting related nodes, PCL uses node order to group nodes.
+      if %w(personneMorale personnePhysique).include?(sibling.name)
+        if entity_type
+          record[:subjects] << {
+            entity_type: entity_type,
+            entity_properties: compact(entity_properties),
+          }
+          entity_type = nil
+          entity_properties = Marshal.load(Marshal.dump(default_entity_properties))
+        end
+      end
+
+      subnode = parser.parse(sibling.to_s).fetch(sibling.name)
+
+      case sibling.name
+      when 'personneMorale'
+        entity_type = 'company'
+        entity_properties[:name] = subnode.fetch('denomination')
+        entity_properties[:company_type] = subnode['formeJuridique']
+        if subnode.key?('sigle')
+          entity_properties[:alternative_names] << {
+            company_name: subnode['sigle'],
+            type: 'abbreviation',
+          }
+        end
+
+      when 'personnePhysique'
+        entity_type = 'person'
+        if subnode.key?('nom') && subnode.key?('denominationEIRL')
+          warn("expected one of nom or denominationEIRL, got both")
+        end
+        entity_properties[:name] = if subnode.key?('nom')
+          compact({
+            family_name: subnode['nomUsage'] || subnode['nom'],
+            given_name: subnode['prenom'],
+            birth_name: subnode['nom'],
+          })
+        else
+          subnode.fetch('denominationEIRL')
+        end
+
+      when 'numeroImmatriculation'
+        entity_properties[:identifiers] << {
+          uid: "#{subnode.fetch('numeroIdentificationRCS')} #{subnode.fetch('codeRCS')} #{subnode.fetch('nomGreffeImmat')}",
+          identifier_system_code: "fr_bodacc_#{subnode.fetch('codeRCS').downcase}",
+        }
+
+      when 'nonInscrit'
+        # Do nothing.
+
+      when 'inscriptionRM'
+        entity_properties[:identifiers] << {
+          uid: "#{subnode.fetch('numeroIdentificationRM')} #{subnode.fetch('codeRM')} #{subnode.fetch('numeroDepartement')}",
+          identifier_system_code: "fr_bodacc_#{subnode.fetch('codeRM').downcase}",
+        }
+
+      when 'enseigne'
+        entity_properties[:alternative_names] << {
+          company_name: subnode,
+          type: 'unknown', # nomCommercial is "trading", sigle is "abbreviation"
+        }
+
+      when 'activite'
+        # @see https://github.com/openc/openc-schema/issues/39
+
+      when 'adresse'
+        entity_properties[:registered_address] = address(subnode)
+
+      when 'jugement', 'jugementAnnule'
+        break
+
+      else
+        error("unexpected node #{sibling.name}")
+      end
     end
-    # TODO
-=begin
-    # The number of entities (`personneMorale`, `personnePhysique`) matches the
-    # number of registrations (`numeroImmatriculation`, `nonInscrit`), `adresse`,
-    # `inscriptionRM` and `enseigne`. The number of `activite` is unpredictable.
-    # The order of `personneMorale` and `personnePhysique` matters, but this is
-    # lost in the conversion to JSON.
-
-    node.fetch('identifiantClient')
-
-    moral_person(node['personneMorale'])
-    physical_person(node['personnePhysique'])
-
-    registration(node)
-    'inscriptionRM'
-      'numeroIdentificationRM'
-      'codeRM'
-      'numeroDepartement'
-    'enseigne'
-    'activite'
-    'adresse'
 
     if node.key?('jugement') && node.key?('jugementAnnule')
       warn("expected one of jugement or jugementAnnule, got both")
     end
 
-    if node.key?('jugement')
+    # If the `update_action.type` is "cancellation", then `jugementAnnule`
+    # is used instead of `jugement`.
+    record[:about] = if node.key?('jugement')
       judgment(node['jugement'])
     else
       judgment(node.fetch('jugementAnnule'))
     end
-=end
   end
 
   def parse_div(node, record)
@@ -361,37 +426,54 @@ class FR_BODACC < Framework::Processor
   end
 
   def parse_bilan(node, record)
-    entity = registration(node, required: true)
-    entity[:name] = node.fetch('denomination')
+    entity_properties = registration(node, required: true)
+    entity_properties[:name] = node.fetch('denomination')
 
     if node.key?('sigle')
-      entity[:alternative_names] = [{
+      entity_properties[:alternative_names] = [{
         company_name: node['sigle'],
         type: 'abbreviation',
       }]
     end
 
-    entity[:company_type] = node['formeJuridique']
+    entity_properties[:company_type] = node['formeJuridique']
 
-    entity[:registered_address] = address(node['adresse'])
+    entity_properties[:registered_address] = address(node['adresse'])
 
     if node.key?('depot')
-      entity[:filings] = [compact({
-        date: date_format(node['depot'].fetch('dateCloture')),
-        filing_type_name: node['depot'].fetch('typeDepot'),
-        description: node['depot']['descriptif'],
-      })]
+      value = {
+        kind: 'filing',
+        classification: [{
+          scheme: 'fr_bodacc_typeDepot',
+          value: node['depot'].fetch('typeDepot'), # code list
+        }],
+        closing_date: date_format(node['depot'].fetch('dateCloture')),
+      }
+
+      if node['depot'].key?('descriptif')
+        value[:body] = {
+          value: node['depot']['descriptif'],
+          media_type: 'text/plain',
+        }
+      end
+
+      record[:about] = compact(value)
     end
 
     record[:subjects] = [{
       entity_type: 'company',
-      entity_properties: compact(entity),
+      entity_properties: compact(entity_properties),
     }]
   end
 
 
 
   ### Helpers
+
+  # @return [Nori] an XML-to-JSON parser
+  def parser
+    @parser ||= Nori.new
+  end
 
   # @param [Hash] hash a hash
   # @return [Hash] a hash without keys with null values
@@ -445,10 +527,8 @@ class FR_BODACC < Framework::Processor
       # RCS-A only
       registration: registration(hash, options),
 
-      # <personneMorale> in RCS-A, PCL, and RCS-B only
-      company_type: hash['formeJuridique'],
-
       # <personneMorale> in RCS-A and RCS-B only
+      company_type: hash['formeJuridique'],
       directors: hash['administration'],
 
       # <personneMorale> in RCS-B only
@@ -462,8 +542,6 @@ class FR_BODACC < Framework::Processor
         type: 'trading',
       }
     end
-
-    # <personneMorale> in RCS-A, PCL, and RCS-B only
     if hash.key?('sigle')
       value[:alternative_names] << {
         company_name: hash['sigle'],
@@ -537,14 +615,8 @@ class FR_BODACC < Framework::Processor
     if hash.key?('numeroImmatriculation')
       node = hash['numeroImmatriculation']
 
-      assert("expected codeRCS to be 'RCS', got #{node['codeRCS']}"){node.fetch('codeRCS') == 'RCS'}
-
       {
-        company_number: node.fetch('numeroIdentification', node.fetch('numeroIdentificationRCS')),
-        # @see https://github.com/openc/openc-schema/issues/39
-        # other_attributes: {
-        #   registrar: node.fetch('nomGreffeImmat'),
-        # },
+        company_number: "#{node.fetch('numeroIdentification', node.fetch('numeroIdentificationRCS'))} #{node.fetch('codeRCS')} #{node.fetch('nomGreffeImmat')}",
       }
     elsif options[:required]
       hash.fetch('nonInscrit') && {}
@@ -580,9 +652,15 @@ class FR_BODACC < Framework::Processor
   # @return [Hash] the values of the judgment
   def judgment(hash)
     value = {
-      type: hash.fetch('famille'), # code list
-      classification: hash.fetch('nature'), # code list
-      date: date_format(hash['date'], '%e %B %Y'),
+      kind: 'judgment',
+      classification: [{
+        scheme: 'fr_bodacc_famille',
+        value: hash.fetch('famille'), # code list
+      }, {
+        scheme: 'fr_bodacc_nature',
+        value: hash.fetch('nature'), # code list
+      }],
+      date: date_format(hash['date'], ['%e %B %Y']),
     }
 
     if hash.key?('complementJugement')
