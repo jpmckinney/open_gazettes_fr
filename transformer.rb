@@ -2,14 +2,24 @@
 
 require_relative 'framework'
 
+require 'active_support/core_ext/hash/deep_merge'
+require 'nokogiri'
+
 class FR_BODACC < Framework::Processor
   TOP_LEVEL_NODE = {
     'RCS-A' => 'RCS_A_IMMAT',
     'PCL' => 'PCL_REDIFF',
     'DIV' => 'Divers_XML_Rediff',
-    'RCS-B' => 'RCS-B_REDIFF',
+    'RCS-B' => 'RCS_B_REDIFF',
     'BILAN' => 'Bilan_XML_Rediff',
-  }
+  }.freeze
+
+  TYPES = {
+    'annonce' => nil,
+    'creation' => nil,
+    'rectificatif' => 'correction',
+    'annulation' => 'cancellation',
+  }.freeze
 
   MONTH_NAMES = {
     'janvier' => 'January',
@@ -67,13 +77,8 @@ class FR_BODACC < Framework::Processor
   def scrape
     STDIN.each_line do |line|
       issue = JSON.load(line)
-      format = issue.fetch('other_attributes').fetch('format')
 
-      unless ['RCS-A', 'DIV'].include?(format)
-        # TODO Add support for other formats besides RCS-A.
-        debug("Skipping #{format} #{issue['identifier']}")
-        next
-      end
+      format = issue.fetch('other_attributes').fetch('format')
 
       document = issue.fetch('other_attributes').fetch('data').fetch(TOP_LEVEL_NODE.fetch(format))
 
@@ -119,50 +124,80 @@ class FR_BODACC < Framework::Processor
         other_attributes: {},
       }
 
-      nodes = if format == 'PCL'
-        document.fetch('annonces').fetch('annonce')
+      if format == 'PCL'
+        nodes = to_array(document.fetch('annonces').fetch('annonce'))
+        xml = Nokogiri::XML(issue.fetch('other_attributes').fetch('xml'), nil, 'utf-8').xpath('/PCL_REDIFF/annonces/annonce')
+        assert("expected the number of XML nodes (#{xml.size}) to be the number of JSON nodes (#{nodes.size})"){xml.size == nodes.size}
       else
-        document.fetch('listeAvis').fetch('avis')
+        nodes = to_array(document.fetch('listeAvis').fetch('avis'))
       end
 
-      to_array(nodes).each do |node|
+      nodes.each_with_index do |node,index|
         record = Marshal.load(Marshal.dump(default_record))
 
-        # RCS-A: "annonce", "rectificatif", "annulation"
-        # PCL: "creation", "rectificatif", "annulation"
-        # DIV: "annonce"
-        # RCS-B: "annonce", "rectificatif", "annulation"
-        # BILAN: "annonce", "rectificatif", "annulation"
-        record[:other_attributes][:notice_type] = node.fetch('typeAnnonce').keys.first
-        record[:uid] = node.fetch('nojo')
-        record[:identifier] = Integer(node.fetch('numeroAnnonce'))
+        type_raw = node.fetch('typeAnnonce').keys.first
+        if format != 'DIV'
+          type = TYPES.fetch(type_raw)
+          if type
+            subnode = node.fetch('parutionAvisPrecedent')
 
-        record = case format
-        when 'RCS-A'
-          parse_div_a(node, record)
-        when 'DIV'
-          parse_div(node, record)
+            record[:update_action] = {
+              type: type,
+              object: {
+                issue: {
+                  identifier: subnode.fetch('numeroParution'),
+                  edition_id: subnode.fetch('nomPublication'),
+                },
+                date_published: date_format(subnode.fetch('dateParution'), ['%Y-%m-%d', '%e %B %Y']),
+                identifier: Integer(subnode.fetch('numeroAnnonce')),
+              },
+            }
+          else
+            assert("expected parutionAvisPrecedent to be nil"){!node.key?('parutionAvisPrecedent')}
+          end
+
+          record[:publisher] = {
+            name: node.fetch('tribunal').gsub("\n", " "),
+            identifier: node.fetch('numeroDepartement'),
+          }
+        else
+          assert("expected typeAnnonce to be 'annonce', got '#{type_raw}'"){type_raw == 'annonce'}
         end
 
-        puts JSON.dump(record.select{|_,v| v})
+        record[:uid] = node.fetch('nojo')
+        record[:identifier] = Integer(node.fetch('numeroAnnonce'))
+        record[:url] = "http://www.bodacc.fr/annonce/detail/#{record[:uid]}"
+        record[:media_type] = 'text/html'
+
+        # `record` is passed by reference.
+        case format
+        when 'RCS-A'
+          parse_div_a(node, record)
+        when 'PCL'
+          parse_pcl(xml[index], record)
+        when 'DIV'
+          parse_div(node, record)
+        when 'RCS-B'
+          parse_rcs_b(node, record)
+        when 'BILAN'
+          parse_bilan(node, record)
+        else
+          error("unrecognized format #{format}")
+        end
+
+        unless ENV['TURBOT_QUIET']
+          puts JSON.dump(compact(record))
+        end
       end
     end
   end
 
-  def parse_div(node, record)
-    record[:title] = node['titreAnnonce']
-    record[:body] = {
-      value: node.fetch('contenuAnnonce'),
-      media_type: 'text/plain',
-    }
 
-    record
-  end
 
+  ### XML Schema
+
+  # TODO review schema
   def parse_div_a(node, record)
-    record[:other_attributes][:department_number] = node.fetch('numeroDepartement')
-    record[:other_attributes][:tribunal] = node.fetch('tribunal').gsub("\n", " ")
-
     record[:other_attributes][:entities] = to_array(node.fetch('personnes').fetch('personne')).map do |personne|
       entity = {}
 
@@ -170,38 +205,14 @@ class FR_BODACC < Framework::Processor
         if personne.key?('personnePhysique')
           warn("expected one of personneMorale or personnePhysique, got both")
         end
-        entity[:entity] = moral_person(personne['personneMorale'])
-      elsif personne.key?('personnePhysique')
-        entity[:entity] = physical_person(personne['personnePhysique'])
+        entity[:entity] = moral_person(personne['personneMorale'], required: true)
       else
-        warn("expected one of personneMorale or personnePhysique, got none")
+        entity[:entity] = physical_person(personne.fetch('personnePhysique'), required: true)
       end
 
-      if personne.key?('capital')
-        subnode = personne['capital']
-        entity[:capital] = if subnode.key?('montantCapital')
-          {
-            amount_value: subnode['montantCapital'],
-            currency: subnode.fetch('devise'),
-          }
-        else
-          {
-            amount: subnode.fetch('capitalVariable'),
-          }
-        end
-      end
+      entity[:capital] = capital(personne)
 
-      if personne.key?('adresse')
-        subnode = personne['adresse']
-        entity[:address] = if subnode.key?('france')
-          france_address(subnode['france'])
-        elsif subnode.key?('etranger')
-          {
-            address: subnode['etranger'].fetch('adresse'),
-            country_name: subnode['etranger']['pays'],
-          }
-        end
-      end
+      entity[:address] = address(personne['adresse'])
 
       entity
     end
@@ -232,19 +243,6 @@ class FR_BODACC < Framework::Processor
       physical_person(subnode)
     end
 
-    # <parutionAvisPrecedent>
-    if node.key?('parutionAvisPrecedent')
-      subnode = node['parutionAvisPrecedent']
-      record[:other_attributes][:previous] = {
-        issue: {
-          identifier: subnode.fetch('numeroParution'),
-          edition_id: subnode.fetch('nomPublication'),
-        },
-        date_published: date_format(subnode.fetch('dateParution'), '%e %B %Y'),
-        identifier: Integer(subnode.fetch('numeroAnnonce')),
-      }
-    end
-
     # <acte>
     act_type = node.fetch('acte').keys.first # "creation", "immatriculation", "vente"
     subnode = node.fetch('acte').fetch(act_type) || {}
@@ -263,7 +261,7 @@ class FR_BODACC < Framework::Processor
     record[:description] = subnode['descriptif']
 
     if ['immatriculation', 'vente'].include?(act_type)
-      record[:other_attributes][:act][:effective_date] = date_format(subnode['dateEffet'], '%e %B %Y')
+      record[:other_attributes][:act][:effective_date] = date_format(subnode['dateEffet'], ['%e %B %Y'])
     end
 
     if act_type == 'vente'
@@ -281,11 +279,125 @@ class FR_BODACC < Framework::Processor
         warn("expected one of opposition or declarationCreance, got none")
       end
     end
-
-    record
   end
 
+  # TODO review schema
+  def parse_pcl(node, record)
+    if node.xpath('/personneMorale|/personnePhysique').size > 1
+      # puts node.to_s(indent: 2)
+      # puts
+    end
+    # TODO
+=begin
+    # The number of entities (`personneMorale`, `personnePhysique`) matches the
+    # number of registrations (`numeroImmatriculation`, `nonInscrit`), `adresse`,
+    # `inscriptionRM` and `enseigne`. The number of `activite` is unpredictable.
+    # The order of `personneMorale` and `personnePhysique` matters, but this is
+    # lost in the conversion to JSON.
+
+    node.fetch('identifiantClient')
+
+    moral_person(node['personneMorale'])
+    physical_person(node['personnePhysique'])
+
+    registration(node)
+    'inscriptionRM'
+      'numeroIdentificationRM'
+      'codeRM'
+      'numeroDepartement'
+    'enseigne'
+    'activite'
+    'adresse'
+
+    if node.key?('jugement') && node.key?('jugementAnnule')
+      warn("expected one of jugement or jugementAnnule, got both")
+    end
+
+    if node.key?('jugement')
+      judgment(node['jugement'])
+    else
+      judgment(node.fetch('jugementAnnule'))
+    end
+=end
+  end
+
+  def parse_div(node, record)
+    record[:title] = node['titreAnnonce']
+    record[:body] = {
+      value: node.fetch('contenuAnnonce'),
+      media_type: 'text/plain',
+    }
+  end
+
+  # TODO review schema
+  def parse_rcs_b(node, record)
+    to_array(node.fetch('personnes').fetch('personne')).map do |personne|
+      if personne.key?('personneMorale')
+        if personne.key?('personnePhysique')
+          warn("expected one of personneMorale or personnePhysique, got both")
+        end
+        # TODO
+        moral_person(personne['personneMorale'])
+      else
+        # TODO
+        physical_person(personne.fetch('personnePhysique'))
+      end
+
+      # TODO
+      registration(personne, required: true) # TODO merge
+      personne['activite']
+      address(personne['adresse'])
+      address(personne['siegSocial'])
+      address(personne['etablissementPrincipal'])
+    end
+
+    # TODO
+    if node.key?('modificationsGenerales') && node.key?('radiationAuRCS')
+      warn("expected one of modificationsGenerales or radiationAuRCS, got both")
+    end
+
+    'modificationsGenerales'
+    'radiationAuRCS'
+  end
+
+  def parse_bilan(node, record)
+    entity = registration(node, required: true)
+    entity[:name] = node.fetch('denomination')
+
+    if node.key?('sigle')
+      entity[:alternative_names] = [{
+        company_name: node['sigle'],
+        type: 'abbreviation',
+      }]
+    end
+
+    entity[:company_type] = node['formeJuridique']
+
+    entity[:registered_address] = address(node['adresse'])
+
+    if node.key?('depot')
+      entity[:filings] = [compact({
+        date: date_format(node['depot'].fetch('dateCloture')),
+        filing_type_name: node['depot'].fetch('typeDepot'),
+        description: node['depot']['descriptif'],
+      })]
+    end
+
+    record[:subjects] = [{
+      entity_type: 'company',
+      entity_properties: compact(entity),
+    }]
+  end
+
+
+
   ### Helpers
+
+  # @param [Hash] hash a hash
+  # @return [Hash] a hash without keys with null values
+  def compact(hash)
+    hash.select{|_,v| v}
+  end
 
   # @param value a value
   # @return [Array] the value or an array containing the value
@@ -300,44 +412,50 @@ class FR_BODACC < Framework::Processor
   end
 
   # @param [String] value a date
-  # @param [String] pattern a `strftime` format string
-  def date_format(value, pattern = '%Y-%m-%d')
+  # @param [Array<String>] patterns `strftime` format strings
+  def date_format(value, patterns = ['%Y-%m-%d'])
     if value
-      if pattern['%B']
-        value = value.gsub(MONTH_NAMES_RE){|match| MONTH_NAMES.fetch(match)}.sub(/\A1er\b/, '1').gsub(/\p{Space}/, ' ')
+      patterns.each do |pattern|
+        if pattern['%B']
+          value = value.sub(MONTH_NAMES_RE){|match| MONTH_NAMES.fetch(match)}.sub(/\A1er\b/, '1').gsub(/\p{Space}/, ' ')
+        end
+        date = Date.strptime(value, pattern) rescue false
+        if date
+          return date.strftime('%Y-%m-%d')
+        end
       end
-      begin
-        Date.strptime(value, pattern).strftime('%Y-%m-%d')
-      rescue ArgumentError => e
-        error("#{e}: #{value.inspect}")
-      end
+      error("expected #{value.inspect} to match one of #{patterns.inspect}")
     end
   end
 
+
+
+  ### Sections
+
   # @param [Hash] hash a hash
+  # @param [Hash] options options
+  # @option options [Boolean] :required whether a registration is required
   # @return [Hash] the values of the moral person
-  def moral_person(hash)
+  def moral_person(hash, options = {})
     value = {
       type: 'Moral person',
       name: hash.fetch('denomination'),
-      registration: registration_number(hash),
-
-      # <personneMorale> only
-      company_type: hash['formeJuridique'],
       alternative_names: [],
+
+      # RCS-A only
+      registration: registration(hash, options),
+
+      # <personneMorale> in RCS-A, PCL, and RCS-B only
+      company_type: hash['formeJuridique'],
+
+      # <personneMorale> in RCS-A and RCS-B only
       directors: hash['administration'],
+
+      # <personneMorale> in RCS-B only
+      capital: capital(hash),
     }
 
-    if hash['administration'] && !hash['administration'][/\b(?:Modification de la désignation d'un dirigeant : |devient|n'est plus)\b/]
-      parts = hash['administration'].split(DIRECTORS_RE)
-      parts[1..-2] = parts[1..-2].flat_map{|part| part.split(DIRECTOR_ROLES_RE, 2)}
-      if parts.size.even?
-        value[:directors] = Hash[*parts]
-      elsif hash['administration'][':']
-        debug("can't parse: #{parts.inspect}")
-      end
-    end
-
+    # <personneMorale> in RCS-A and RCS-B only
     if hash.key?('nomCommercial')
       value[:alternative_names] << {
         company_name: hash['nomCommercial'],
@@ -345,6 +463,7 @@ class FR_BODACC < Framework::Processor
       }
     end
 
+    # <personneMorale> in RCS-A, PCL, and RCS-B only
     if hash.key?('sigle')
       value[:alternative_names] << {
         company_name: hash['sigle'],
@@ -352,66 +471,177 @@ class FR_BODACC < Framework::Processor
       }
     end
 
-    value
+    # TODO Handle the alternate format for `administration`.
+    if hash['administration'] && !hash['administration'][/\b(?:Modification de la désignation d'un dirigeant : |devient|n'est plus)\b/]
+      parts = hash['administration'].split(DIRECTORS_RE)
+      parts[1..-2] = parts[1..-2].flat_map{|part| part.split(DIRECTOR_ROLES_RE, 2)}
+
+      if parts.size.even?
+        value[:directors] = Hash[*parts]
+      elsif hash['administration'][':']
+        debug("can't parse: #{parts.inspect}")
+      end
+    end
+
+    compact(value)
   end
 
   # @param [Hash] hash a hash
+  # @param [Hash] options options
+  # @option options [Boolean] :required whether a registration is required
   # @return [Hash] the values of the physical person
-  def physical_person(hash)
-    {
+  def physical_person(hash, options = {})
+    value = {
       type: 'Physical person',
       family_name: hash.fetch('nom'),
       given_name: hash.fetch('prenom'),
       customary_name: hash['nomUsage'],
-      registration: registration_number(hash),
+      alternative_names: [],
 
-      # <precedentProprietairePP> and <precedentExploitantPP> only
+      # RCS-A only
+      registration: registration(hash, options),
+
+      # <precedentProprietairePP> and <precedentExploitantPP> in RCS-A only
       nature: hash['nature'],
 
-      # <personnePhysique> only
-      alternative_names: [{
-        name: hash['pseudonyme'],
-      }, {
-        name: hash['nomCommercial'],
-      }],
-      nationality: hash['nationalite'],
+      # <personnePhysique> in RCS-A only
+      nationality: hash['nationnalite'],
     }
+
+    # <personnePhysique> in RCS-A and RCS-B only
+    if hash.key?('pseudonyme')
+      value[:alternative_names] << {
+        name: hash['pseudonyme'],
+        type: 'unknown',
+      }
+    end
+    if hash.key?('nomCommercial')
+      value[:alternative_names] << {
+        name: hash['nomCommercial'],
+        type: 'trading',
+      }
+    end
+
+    compact(value)
   end
 
   # @param [Hash] hash a hash
+  # @param [Hash] options options
+  # @option options [Boolean] :required whether a registration is required
   # @return [Hash] the values of the registration
-  def registration_number(hash)
+  def registration(hash, options = {})
+    if hash.key?('numeroImmatriculation') && hash.key?('nonInscrit')
+      warn("expected one of numeroImmatriculation or nonInscrit, got both")
+    end
+
     if hash.key?('numeroImmatriculation')
       node = hash['numeroImmatriculation']
+
+      assert("expected codeRCS to be 'RCS', got #{node['codeRCS']}"){node.fetch('codeRCS') == 'RCS'}
+
       {
-        registered: true,
-        number: node.fetch('numeroIdentification'),
-        rcs: node.fetch('codeRCS'),
-        clerk: node.fetch('nomGreffeImmat'),
+        company_number: node.fetch('numeroIdentification', node.fetch('numeroIdentificationRCS')),
+        # @see https://github.com/openc/openc-schema/issues/39
+        # other_attributes: {
+        #   registrar: node.fetch('nomGreffeImmat'),
+        # },
       }
-    elsif hash.key?('nonInscrit')
-      {
-        registered: false,
-      }
+    elsif options[:required]
+      hash.fetch('nonInscrit') && {}
+    else
+      {}
     end
   end
 
   # @param [Hash] hash a hash
+  # @return [Hash] the values of the capital
+  def capital(hash)
+    if hash.key?('capital')
+      node = hash['capital']
+
+      if node.key?('montantCapital') && node.key?('capitalVariable')
+        warn("expected one of montantCapital or capitalVariable, got both")
+      end
+
+      if node.key?('montantCapital')
+        {
+          amount_value: node['montantCapital'],
+          currency: node.fetch('devise'),
+        }
+      else
+        {
+          amount: node.fetch('capitalVariable'),
+        }
+      end
+    end
+  end
+
+  # @param [Hash] hash a hash
+  # @return [Hash] the values of the judgment
+  def judgment(hash)
+    value = {
+      type: hash.fetch('famille'), # code list
+      classification: hash.fetch('nature'), # code list
+      date: date_format(hash['date'], '%e %B %Y'),
+    }
+
+    if hash.key?('complementJugement')
+      value[:body] = {
+        value: hash['complementJugement'],
+        media_type: 'text/plain',
+      }
+    end
+
+    compact(value)
+  end
+
+  # @param [Hash] hash a hash
   # @return [Hash] the values of the address
+  def address(hash)
+    if hash
+      if hash.key?('france') && hash.key?('etranger')
+        warn("expected one of france or etranger, got both")
+      end
+
+      if hash.key?('france')
+        france_address(hash['france'])
+      else
+        node = hash.fetch('etranger')
+
+        compact({
+          street_address: node.fetch('adresse'), # a complete address
+          country_name: node['pays'],
+        })
+      end
+    end
+  end
+
+  # @param [Hash] hash a hash
+  # @return [Hash] the values of the French address
   def france_address(hash)
     if hash
-      # @see AddressRepresentation and LocatorDesignatorTypeValue in http://inspire.ec.europa.eu/documents/Data_Specifications/INSPIRE_DataSpecification_AD_v3.0.1.pdf
-      {
-        locator_designator_address_number: hash['numeroVoie'],
-        thoroughfare_type: hash['typeVoie'],
-        thoroughfare_name: hash['nomVoie'],
-        locator_designator_building_identifier: hash['complGeographique'],
-        locator_designator_postal_delivery_identifier: hash['BP'],
-        address_area: hash['localite'],
-        post_code: hash.fetch('codePostal'), # can start with "0"
-        admin_unit: hash.fetch('ville'),
-        country_name: 'France',
-      }.select{|_,v| v}
+      compact({
+        # In INSPIRE, the terms may be:
+        # * locator_designator_address_number
+        # * thoroughfare_type
+        # * thoroughfare_name
+        # * locator_designator_building_identifier
+        # * locator_designator_postal_delivery_identifier
+        # * address_area
+        # * post_code
+        # * admin_unit
+        # * country_name
+        # @see AddressRepresentation and LocatorDesignatorTypeValue in http://inspire.ec.europa.eu/documents/Data_Specifications/INSPIRE_DataSpecification_AD_v3.0.1.pdf
+        street_address: [
+          # complGeographique can be "1 &", "Batiment 6", etc.
+          hash.values_at('complGeographique', 'numeroVoie', 'typeVoie', 'nomVoie').compact.join(' '),
+          hash.values_at('BP', 'localite').compact.join(' '),
+        ].reject(&:empty?).join("\n"),
+        locality: hash.fetch('ville'),
+        postal_code: hash.fetch('codePostal'), # can start with "0"
+        country: 'France',
+        country_code: 'FR',
+      })
     end
   end
 end
