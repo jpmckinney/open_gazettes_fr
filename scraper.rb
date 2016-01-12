@@ -181,11 +181,11 @@ class FR_BODACC < Framework::Processor
         return
       end
 
-      xml = entry.read
-
       # If given a `RemoteTazFile`, retrieval is now.
       retrieved_at = options[:retrieved_at] || now
       Gem::Package::TarReader.new(uncompress(file.path)).each do |entry|
+        xml = entry.read
+
         puts JSON.dump({
           identifier: issue_number,
           edition_id: edition_id,
@@ -193,7 +193,7 @@ class FR_BODACC < Framework::Processor
           other_attributes: {
             format: format,
             data: parser.parse(xml),
-            xml: format == 'PCL' && xml, # the order of XML elements matters for PCL only
+            xml: format == 'PCL' && xml.force_encoding('iso-8859-1').encode('utf-8'), # the order of XML elements matters for PCL only
           },
           default_attributes: {
             source_url: options[:source_url],
