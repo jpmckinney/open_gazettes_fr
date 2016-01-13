@@ -2,6 +2,7 @@ require 'forwardable'
 require 'logger'
 
 require 'turbotlib'
+require 'faraday'
 
 begin
   require 'faraday_middleware'
