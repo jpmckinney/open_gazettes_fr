@@ -1,80 +1,15 @@
 # coding: utf-8
 
 require_relative 'framework'
+require_relative 'constants'
+
+require 'set'
 
 require 'active_support/core_ext/hash/deep_merge'
 require 'nokogiri'
 require 'nori'
 
 class FR_BODACC < Framework::Processor
-  TOP_LEVEL_NODE = {
-    'RCS-A' => 'RCS_A_IMMAT',
-    'PCL' => 'PCL_REDIFF',
-    'DIV' => 'Divers_XML_Rediff',
-    'RCS-B' => 'RCS_B_REDIFF', # XML schema has it wrong
-    'BILAN' => 'Bilan_XML_Rediff',
-  }.freeze
-
-  TYPES = {
-    'annonce' => nil,
-    'creation' => nil,
-    'rectificatif' => 'correction',
-    'annulation' => 'cancellation',
-  }.freeze
-
-  MONTH_NAMES = {
-    'janvier' => 'January',
-    'février' => 'February',
-    'mars' => 'March',
-    'avril' => 'April',
-    'mai' => 'May',
-    'juin' => 'June',
-    'juillet' => 'July',
-    'août' => 'August',
-    'septembre' => 'September',
-    'octobre' => 'October',
-    'novembre' => 'November',
-    'décembre' => 'December',
-  }.freeze
-
-  MONTH_NAMES_RE = Regexp.new(MONTH_NAMES.keys.join('|')).freeze
-
-  # "EX", "NOM COMMERCIAL", "PAR ABREVIATION", "Prénom usuel", "nom d'usage", "nom d'uasage", "représenté par"
-  DIRECTORS_RE = /(?<! \(EX| par|CIAL|sage|suel|TION) : (?!RCS )/.freeze
-
-  DIRECTOR_ROLES = [
-    'Actionnaire',
-    'Administrateur',
-    'Associé',
-    'Co-gérant',
-    'Commissaire',
-    'Conjoint',
-    'Conseiller',
-    'Contrôleur',
-    'Directeur',
-    'Dirigeant',
-    'Fondé',
-    'Gerant',
-    'Gérant',
-    'Gérante',
-    'Indivisaire',
-    'Liquidateur',
-    'Membre',
-    'Personne',
-    'Président',
-    'Représentant',
-    'Responsable',
-    'Réviseur',
-    'Sans correspondance',
-    'Secrétaire',
-    'Société',
-    'Surveillant',
-    'Trésorier',
-    'Vice-président',
-  ].freeze
-
-  DIRECTOR_ROLES_RE = / (?=\b(?:#{DIRECTOR_ROLES.join('|')})\b)/i.freeze
-
   def scrape
     STDIN.each_line do |line|
       issue = JSON.load(line)
@@ -143,9 +78,15 @@ class FR_BODACC < Framework::Processor
         type_raw = node.fetch('typeAnnonce').keys.first
         if format != 'DIV'
           type = TYPES.fetch(type_raw)
-          if type
-            subnode = node.fetch('parutionAvisPrecedent')
 
+          # There can rarely be an update for type "annonce" in RCS-A (once in 2015).
+          subnode = if type
+            node.fetch('parutionAvisPrecedent')
+          else # `type_raw` is "annonce", "creation"
+            node['parutionAvisPrecedent']
+          end
+
+          if subnode
             record[:update_action] = {
               type: type,
               object: {
@@ -157,8 +98,6 @@ class FR_BODACC < Framework::Processor
                 identifier: Integer(subnode.fetch('numeroAnnonce')),
               },
             }
-          else
-            assert("expected parutionAvisPrecedent to be nil"){!node.key?('parutionAvisPrecedent')}
           end
 
           record[:publisher] = {
@@ -178,7 +117,7 @@ class FR_BODACC < Framework::Processor
         xml_node = xml_items[index]
         case format
         when 'RCS-A'
-          parse_div_a(node, xml_node, record)
+          parse_rcs_a(node, xml_node, record)
         when 'PCL'
           parse_pcl(node, xml_node, record)
         when 'DIV'
@@ -202,86 +141,97 @@ class FR_BODACC < Framework::Processor
 
   ### XML Schema
 
-  # XXX review schema
-  def parse_div_a(node, xml_node, record)
-    record[:other_attributes][:entities] = to_array(node.fetch('personnes').fetch('personne')).map do |personne|
-      entity = {}
-
-      if personne.key?('personneMorale')
-        if personne.key?('personnePhysique')
-          warn("expected one of personneMorale or personnePhysique, got both")
-        end
-        entity[:entity] = moral_person(personne['personneMorale'], required: true)
-      else
-        entity[:entity] = physical_person(personne.fetch('personnePhysique'), required: true)
+  def parse_rcs_a(node, xml_node, record)
+    record[:subjects] = to_array(node.fetch('personnes').fetch('personne')).map do |subnode|
+      if subnode.key?('personneMorale') && subnode.key?('personnePhysique')
+        warn("expected one of personneMorale or personnePhysique, got both")
       end
 
-      # @see https://github.com/openc/openc-schema/issues/39
-      # capital(personne)
+      properties = subnode.slice('capital', 'adresse')
 
-      entity[:address] = address(personne['adresse'])
-
-      entity
+      if subnode.key?('personneMorale')
+        company(subnode['personneMorale'].merge(properties), required: true)
+      else
+        person(subnode.fetch('personnePhysique').merge(properties), required: true)
+      end
     end
 
-    record[:other_attributes][:establishments] = to_array(node['etablissement']).map do |subnode|
-      {
-        origin: subnode['origineFonds'],
-        establishment_type: subnode['qualiteEtablissement'],
-        activity: subnode['activite'],
-        sign: subnode['enseigne'],
-        address: france_address(subnode['adresse']),
+    act_type = node.fetch('acte').keys.first
+    subnode = node.fetch('acte').fetch(act_type) || {}
+
+    record[:about] = {
+      kind: ACT_TYPES.fetch(act_type),
+      registration_date: date_format(subnode['dateImmatriculation']),
+      activity_start_date: date_format(subnode['dateCommencementActivite']),
+      effective_date: date_format(subnode['dateEffet'], ['%e %B %Y']),
+    }
+
+    if subnode.key?('descriptif')
+      record[:about][:body] = {
+        value: subnode['descriptif'],
+        media_type: 'text/plain',
       }
     end
 
-    record[:other_attributes][:previous_owners] = to_array(node['precedentProprietairePM']).map do |subnode|
-      moral_person(subnode)
-    end
-    record[:other_attributes][:previous_owners] += to_array(node['precedentProprietairePP']).map do |subnode|
-      physical_person(subnode)
-    end
-
-    record[:other_attributes][:previous_operators] = to_array(node['precedentExploitantPM']).map do |subnode|
-      moral_person(subnode)
-    end
-    record[:other_attributes][:previous_operators] += to_array(node['precedentExploitantPP']).map do |subnode|
-      physical_person(subnode)
-    end
-
-    act_type = node.fetch('acte').keys.first # "creation", "immatriculation", "vente"
-    subnode = node.fetch('acte').fetch(act_type) || {}
-    if act_type == 'creation' # required by XML schema, but sometimes missing
-      record[:classification] = [{
-        scheme: 'fr_bodacc',
-        value: subnode.fetch("categorie#{act_type.capitalize}"),
+    # Required by XML schema, but sometimes missing
+    if subnode.key?("categorie#{act_type.capitalize}")
+      # NOTE These can be mapped to other values using the `CATEGORIES` constant.
+      record[:about][:classification] = [{
+        scheme: 'fr_bodacc_categorie',
+        value: subnode["categorie#{act_type.capitalize}"],
       }]
-    end
-
-    record[:other_attributes][:act] = {
-      type: act_type,
-      date_registered: date_format(subnode['dateImmatriculation']),
-      start_date: date_format(subnode['dateCommencementActivite']),
-    }
-    record[:description] = subnode['descriptif']
-
-    if ['immatriculation', 'vente'].include?(act_type)
-      record[:other_attributes][:act][:effective_date] = date_format(subnode['dateEffet'], ['%e %B %Y'])
     end
 
     if act_type == 'vente'
       if subnode.key?('journal')
-        record[:other_attributes][:act][:journal] = {
+        record[:about][:publication] = {
           title: subnode['journal'].fetch('titre'),
-          date: date_format(subnode['journal'].fetch('date')),
+          date_published: date_format(subnode['journal'].fetch('date')),
         }
       end
 
       if subnode.key?('opposition') || subnode.key?('declarationCreance')
-        record[:other_attributes][:act][:opposition] = subnode['opposition']
-        record[:other_attributes][:act][:debt_declaration] = subnode['declarationCreance']
-      elsif subnode.any?
+        record[:about][:opposition] = subnode['opposition']
+        # The value of this property is the clerk ("greffe") to whom the
+        # statement of accounts was submitted, presumably.
+        record[:about][:statement_of_accounts] = subnode['declarationCreance']
+      elsif subnode.any? # `vente` is sometimes completely empty
         warn("expected one of opposition or declarationCreance, got none")
       end
+    end
+
+    record[:about][:properties] = to_array(node['etablissement']).map do |subnode|
+      property_type = if PROPERTY_TYPES.key?(subnode['qualiteEtablissement'])
+        PROPERTY_TYPES[subnode['qualiteEtablissement']]
+      else
+        # Unrecognized values are rare.
+        debug("qualiteEtablissement: #{subnode['qualiteEtablissement'].inspect}")
+        subnode['qualiteEtablissement']
+      end
+
+      {
+        type: property_type,
+        name: subnode['enseigne'],
+        activity: subnode['activite'],
+        address: france_address(subnode['adresse']),
+        # NOTE origineFonds can be parsed using the `PROPERTY_ORIGINS` and
+        # `PROPERTY_ORIGINS_RE` constants, with rare unrecognized values.
+        origin: subnode['origineFonds'],
+      }
+    end
+
+    record[:about][:previous_owners] = to_array(node['precedentProprietairePM']).map do |subnode|
+      company(subnode)
+    end
+    record[:about][:previous_owners] += to_array(node['precedentProprietairePP']).map do |subnode|
+      person(subnode)
+    end
+
+    record[:about][:previous_operators] = to_array(node['precedentExploitantPM']).map do |subnode|
+      company(subnode)
+    end
+    record[:about][:previous_operators] += to_array(node['precedentExploitantPP']).map do |subnode|
+      person(subnode)
     end
   end
 
@@ -342,19 +292,19 @@ class FR_BODACC < Framework::Processor
         end
 
       when 'numeroImmatriculation'
-        entity_properties[:identifiers] << {
-          uid: "#{subnode.fetch('numeroIdentificationRCS')} #{subnode.fetch('codeRCS')} #{subnode.fetch('nomGreffeImmat')}",
-          identifier_system_code: "fr_bodacc_#{subnode.fetch('codeRCS').downcase}",
-        }
+        # `codeRCS` and `nomGreffeImmat` are informational.
+        entity_properties[:company_number] = subnode.fetch('numeroIdentificationRCS').gsub(' ', '')
 
       when 'nonInscrit'
         # Do nothing.
 
       when 'inscriptionRM'
-        entity_properties[:identifiers] << {
-          uid: "#{subnode.fetch('numeroIdentificationRM')} #{subnode.fetch('codeRM')} #{subnode.fetch('numeroDepartement')}",
-          identifier_system_code: "fr_bodacc_#{subnode.fetch('codeRM').downcase}",
-        }
+        # `codeRM` and `numeroDepartement` are informational.
+        if entity_properties.key?(:company_number)
+          assert("expected numeroIdentificationRCS (#{subnode['numeroIdentificationRCS']}) to equal numeroIdentificationRM (#{subnode['numeroIdentificationRM']})"){subnode['numeroIdentificationRCS'] == subnode['numeroIdentificationRM']}
+        else
+          entity_properties[:company_number] = subnode.fetch('numeroIdentificationRM').gsub(' ', '')
+        end
 
       when 'enseigne'
         entity_properties[:alternative_names] << {
@@ -407,9 +357,9 @@ class FR_BODACC < Framework::Processor
       properties = subnode.slice('numeroImmatriculation', 'nonInscrit', 'activite', 'adresse', 'siegeSocial', 'etablissementPrincipal')
 
       if subnode.key?('personneMorale')
-        company(subnode['personneMorale'].merge(properties))
+        company(subnode['personneMorale'].merge(properties), required: true)
       else
-        person(subnode.fetch('personnePhysique').merge(properties))
+        person(subnode.fetch('personnePhysique').merge(properties), required: true)
       end
     end
 
@@ -570,11 +520,6 @@ class FR_BODACC < Framework::Processor
       # capital(hash)
     })
 
-    # XXX remove after finishing rcs_a
-    if hash['capital']
-      debug(hash['capital'])
-    end
-
     # TODO Handle other formats of `administration`.
     if hash['administration'] && !hash['administration'][/\b(?:Modification de la désignation d'un dirigeant : |devient|n'est plus)\b/]
       parts = hash['administration'].split(DIRECTORS_RE)
@@ -630,19 +575,15 @@ class FR_BODACC < Framework::Processor
         birth_name: hash.fetch('nom'),
       },
       alternative_names: [],
-      # XXX add comment after finishing rcs_a
+      # @see https://github.com/openc/openc-schema/issues/42
+      # Has values like "belge", "française", "haïtienne", etc.
       # hash['nationnalite']
     })
-
-    # XXX remove after finishing rcs_a
-    if hash['nationnalite']
-      debug("nationnalite: #{hash['nationnalite'].inspect}")
-    end
 
     # TODO `nature` is never set, so I don't know how to interpret it now, in
     # case it is ever set later.
     if hash['nature']
-      debug("nature: #{hash['nature'].inspect}")
+      info("nature: #{hash['nature'].inspect}")
     end
 
     if hash.key?('pseudonyme')
@@ -684,7 +625,8 @@ class FR_BODACC < Framework::Processor
       node = hash['numeroImmatriculation']
 
       {
-        company_number: "#{node['numeroIdentification'] || node.fetch('numeroIdentificationRCS')} #{node.fetch('codeRCS')} #{node.fetch('nomGreffeImmat')}",
+        # `codeRCS` and `nomGreffeImmat` are informational.
+        company_number: (node['numeroIdentification'] || node.fetch('numeroIdentificationRCS')).gsub(' ', ''),
       }
     elsif options[:required] && hash.fetch('nonInscrit')
       {}
@@ -705,13 +647,31 @@ class FR_BODACC < Framework::Processor
 
       if node.key?('montantCapital')
         {
-          value: node['montantCapital'],
+          value: Float(node['montantCapital'].strip),
           currency: node.fetch('devise'),
         }
       else
-        {
-          value: node.fetch('capitalVariable'),
-        }
+        # The substitution is to handle rare cases like "22000, 00 EUROS".
+        match = node.fetch('capitalVariable').sub(', ', '.').match(/\A([\d.]+)(?: (EUR(?:OS)?|FRANCS FRAN[Cç]AIS))?(?: \(capital variable\))?\z/i)
+
+        if match
+          value = {
+            value: Float(match[1]),
+          }
+          if match[2]
+            value[:currency] = CURRENCY_CODES.fetch(match[2].downcase)
+          end
+          value
+        else
+          # The amount may be:
+          # * "<amount> (capital variable minimum)"
+          # * "<amount> (capital variable minimum : <other-amount>)"
+          # * "Capital minimum : <amount>"
+          # * another, future unrecognized format
+          {
+            value: node.fetch('capitalVariable'),
+          }
+        end
       end
     end
   end
@@ -780,8 +740,8 @@ class FR_BODACC < Framework::Processor
         # @see AddressRepresentation and LocatorDesignatorTypeValue in http://inspire.ec.europa.eu/documents/Data_Specifications/INSPIRE_DataSpecification_AD_v3.0.1.pdf
         street_address: [
           # complGeographique can be "1 &", "Batiment 6", etc.
-          hash.values_at('complGeographique', 'numeroVoie', 'typeVoie', 'nomVoie').compact.join(' '),
-          hash.values_at('BP', 'localite').compact.join(' '),
+          hash.values_at('complGeographique', 'numeroVoie', 'typeVoie', 'nomVoie').compact.map(&:strip).join(' '),
+          hash.values_at('BP', 'localite').compact.map(&:strip).join(' '),
         ].reject(&:empty?).join("\n"),
         locality: hash.fetch('ville'),
         postal_code: hash.fetch('codePostal'), # can start with "0"
