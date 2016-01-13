@@ -90,6 +90,7 @@ class FR_BODACC < Framework::Processor
   def scrape
     FR_BODACC_FTP.open('echanges.dila.gouv.fr') do |ftp|
       ftp.logger = @logger
+      ftp.passive = true
 
       info('login')
       ftp.login
