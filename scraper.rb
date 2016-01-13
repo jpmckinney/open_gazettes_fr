@@ -198,6 +198,7 @@ class FR_BODACC < Framework::Processor
             retrieved_at: retrieved_at,
           },
           # Make primary-data-schema.json happy.
+          uid: basename,
           source_url: options[:source_url],
           sample_date: retrieved_at,
         })
