@@ -11,7 +11,7 @@ class FR_BODACC < Framework::Processor
     'RCS-A' => 'RCS_A_IMMAT',
     'PCL' => 'PCL_REDIFF',
     'DIV' => 'Divers_XML_Rediff',
-    'RCS-B' => 'RCS_B_REDIFF',
+    'RCS-B' => 'RCS_B_REDIFF', # XML schema has it wrong
     'BILAN' => 'Bilan_XML_Rediff',
   }.freeze
 
@@ -81,9 +81,11 @@ class FR_BODACC < Framework::Processor
 
       format = issue.fetch('other_attributes').fetch('format')
 
-      document = issue.fetch('other_attributes').fetch('data').fetch(TOP_LEVEL_NODE.fetch(format))
+      data = issue.fetch('other_attributes').fetch('data')
+      xml = Nokogiri::XML(data, nil, 'utf-8')
+      json = parser.parse(data.encode('iso-8859-1')).fetch(TOP_LEVEL_NODE.fetch(format))
 
-      identifier = document.fetch('parution')
+      identifier = json.fetch('parution')
       expected = if format == 'DIV'
         issue['identifier'][0, 4] + issue['identifier'][-4, 4]
       else
@@ -91,14 +93,14 @@ class FR_BODACC < Framework::Processor
       end
       assert("expected #{expected}, got #{identifier}"){identifier == expected}
 
-      date_published = document.fetch('dateParution')
-      date_published = case date_published
+      date_published = json.fetch('dateParution')
+      case date_published
       when %r{/\d{4}\z}
-        Date.strptime(date_published, '%d/%m/%Y')
+        date_published = Date.strptime(date_published, '%d/%m/%Y')
       when %r{\A\d{4}/}
-        Date.strptime(date_published, '%Y/%m/%d')
+        date_published = Date.strptime(date_published, '%Y/%m/%d')
       else
-        Date.strptime(date_published, '%Y-%m-%d')
+        date_published = Date.strptime(date_published, '%Y-%m-%d')
       end
       date_published = date_published.strftime('%Y-%m-%d')
 
@@ -122,18 +124,20 @@ class FR_BODACC < Framework::Processor
         sample_date: issue.fetch('default_attributes').fetch('retrieved_at'),
         retrieved_at: issue.fetch('default_attributes').fetch('retrieved_at'),
         confidence: 'HIGH',
-        other_attributes: {},
+        other_attributes: {
+          format: format,
+        },
       }
 
       if format == 'PCL'
-        nodes = to_array(document.fetch('annonces').fetch('annonce'))
-        xml = Nokogiri::XML(issue.fetch('other_attributes').fetch('xml'), nil, 'utf-8').xpath('/PCL_REDIFF/annonces/annonce')
-        assert("expected the number of XML nodes (#{xml.size}) to equal the number of JSON nodes (#{nodes.size})"){xml.size == nodes.size}
+        xml_items = xml.xpath('//annonces/annonce')
+        json_items = to_array(json.fetch('annonces').fetch('annonce'))
       else
-        nodes = to_array(document.fetch('listeAvis').fetch('avis'))
+        xml_items = xml.xpath('//listeAvis/avis')
+        json_items = to_array(json.fetch('listeAvis').fetch('avis'))
       end
 
-      nodes.each_with_index do |node,index|
+      json_items.each_with_index do |node,index|
         record = Marshal.load(Marshal.dump(default_record))
 
         type_raw = node.fetch('typeAnnonce').keys.first
@@ -171,17 +175,18 @@ class FR_BODACC < Framework::Processor
         record[:media_type] = 'text/html'
 
         # `record` is passed by reference.
+        xml_node = xml_items[index]
         case format
         when 'RCS-A'
-          parse_div_a(node, record)
+          parse_div_a(node, xml_node, record)
         when 'PCL'
-          parse_pcl(node, record, xml[index])
+          parse_pcl(node, xml_node, record)
         when 'DIV'
-          parse_div(node, record)
+          parse_div(node, xml_node, record)
         when 'RCS-B'
-          parse_rcs_b(node, record)
+          parse_rcs_b(node, xml_node, record)
         when 'BILAN'
-          parse_bilan(node, record)
+          parse_bilan(node, xml_node, record)
         else
           error("unrecognized format #{format}")
         end
@@ -197,8 +202,8 @@ class FR_BODACC < Framework::Processor
 
   ### XML Schema
 
-  # TODO review schema
-  def parse_div_a(node, record)
+  # XXX review schema
+  def parse_div_a(node, xml_node, record)
     record[:other_attributes][:entities] = to_array(node.fetch('personnes').fetch('personne')).map do |personne|
       entity = {}
 
@@ -211,7 +216,8 @@ class FR_BODACC < Framework::Processor
         entity[:entity] = physical_person(personne.fetch('personnePhysique'), required: true)
       end
 
-      entity[:capital] = capital(personne)
+      # @see https://github.com/openc/openc-schema/issues/39
+      # capital(personne)
 
       entity[:address] = address(personne['adresse'])
 
@@ -228,7 +234,6 @@ class FR_BODACC < Framework::Processor
       }
     end
 
-    # <precedentProprietairePM> <precedentProprietairePP>
     record[:other_attributes][:previous_owners] = to_array(node['precedentProprietairePM']).map do |subnode|
       moral_person(subnode)
     end
@@ -236,7 +241,6 @@ class FR_BODACC < Framework::Processor
       physical_person(subnode)
     end
 
-    # <precedentExploitantPM> <precedentExploitantPP>
     record[:other_attributes][:previous_operators] = to_array(node['precedentExploitantPM']).map do |subnode|
       moral_person(subnode)
     end
@@ -244,7 +248,6 @@ class FR_BODACC < Framework::Processor
       physical_person(subnode)
     end
 
-    # <acte>
     act_type = node.fetch('acte').keys.first # "creation", "immatriculation", "vente"
     subnode = node.fetch('acte').fetch(act_type) || {}
     if act_type == 'creation' # required by XML schema, but sometimes missing
@@ -282,7 +285,7 @@ class FR_BODACC < Framework::Processor
     end
   end
 
-  def parse_pcl(node, record, xml)
+  def parse_pcl(node, xml_node, record)
     default_entity_properties = {
       identifiers: [],
       alternative_names: [],
@@ -296,13 +299,13 @@ class FR_BODACC < Framework::Processor
     entity_type = nil
     entity_properties = Marshal.load(Marshal.dump(default_entity_properties))
 
-    xml.xpath('./identifiantClient/following-sibling::*').each do |sibling|
+    xml_node.xpath('./identifiantClient/following-sibling::*').each do |sibling|
       # Instead of nesting related nodes, PCL uses node order to group nodes.
       if %w(personneMorale personnePhysique).include?(sibling.name)
         if entity_type
           record[:subjects] << {
             entity_type: entity_type,
-            entity_properties: compact(entity_properties),
+            entity_properties: entity_properties,
           }
           entity_type = nil
           entity_properties = Marshal.load(Marshal.dump(default_entity_properties))
@@ -329,11 +332,11 @@ class FR_BODACC < Framework::Processor
           warn("expected one of nom or denominationEIRL, got both")
         end
         entity_properties[:name] = if subnode.key?('nom')
-          compact({
+          {
             family_name: subnode['nomUsage'] || subnode['nom'],
             given_name: subnode['prenom'],
             birth_name: subnode['nom'],
-          })
+          }
         else
           subnode.fetch('denominationEIRL')
         end
@@ -361,6 +364,7 @@ class FR_BODACC < Framework::Processor
 
       when 'activite'
         # @see https://github.com/openc/openc-schema/issues/39
+        # subnode
 
       when 'adresse'
         entity_properties[:registered_address] = address(subnode)
@@ -386,7 +390,7 @@ class FR_BODACC < Framework::Processor
     end
   end
 
-  def parse_div(node, record)
+  def parse_div(node, xml_node, record)
     record[:title] = node['titreAnnonce']
     record[:body] = {
       value: node.fetch('contenuAnnonce'),
@@ -394,51 +398,75 @@ class FR_BODACC < Framework::Processor
     }
   end
 
-  # TODO review schema
-  def parse_rcs_b(node, record)
-    to_array(node.fetch('personnes').fetch('personne')).map do |personne|
-      if personne.key?('personneMorale')
-        if personne.key?('personnePhysique')
-          warn("expected one of personneMorale or personnePhysique, got both")
-        end
-        # TODO
-        moral_person(personne['personneMorale'])
-      else
-        # TODO
-        physical_person(personne.fetch('personnePhysique'))
+  def parse_rcs_b(node, xml_node, record)
+    record[:subjects] = to_array(node.fetch('personnes').fetch('personne')).map do |subnode|
+      if subnode.key?('personneMorale') && subnode.key?('personnePhysique')
+        warn("expected one of personneMorale or personnePhysique, got both")
       end
 
-      # TODO
-      registration(personne, required: true) # TODO merge
-      personne['activite']
-      address(personne['adresse'])
-      address(personne['siegSocial'])
-      address(personne['etablissementPrincipal'])
+      properties = subnode.slice('numeroImmatriculation', 'nonInscrit', 'activite', 'adresse', 'siegeSocial', 'etablissementPrincipal')
+
+      if subnode.key?('personneMorale')
+        company(subnode['personneMorale'].merge(properties))
+      else
+        person(subnode.fetch('personnePhysique').merge(properties))
+      end
     end
 
-    # TODO
     if node.key?('modificationsGenerales') && node.key?('radiationAuRCS')
       warn("expected one of modificationsGenerales or radiationAuRCS, got both")
     end
 
-    'modificationsGenerales'
-    'radiationAuRCS'
+    # If the `update_action.type` is "cancellation", `modificationsGenerales`
+    # or `radiationAuRCS` is empty.
+    if node.key?('modificationsGenerales')
+      subnode = node['modificationsGenerales']
+      if subnode
+        record[:about] = {
+          kind: 'general modifications',
+          activity_start_date: date_format(subnode['dateCommencementActivite']),
+          effective_date: date_format(subnode['dateEffet']),
+          body: {
+            value: subnode.fetch('descriptif'),
+            media_type: 'text/plain',
+          },
+        }
+
+        record[:about][:previous_operators] = to_array(subnode['precedentExploitantPM']).each do |entity|
+          company(entity, required: true)
+        end
+
+        record[:about][:previous_operators] += to_array(subnode['precedentExploitantPP']).each do |entity|
+          person(entity)
+        end
+      end
+    elsif node.key?('radiationAuRCS')
+      subnode = node['radiationAuRCS']
+      if subnode
+        if subnode.key?('radiationPP') && subnode.key?('radiationPM')
+          warn("expected one of radiationPP or radiationPM, got both")
+        end
+
+        record[:about] = {
+          kind: 'struck off',
+        }
+        if subnode.key?('radiationPP')
+          record[:about][:activity_end_date] = date_format(subnode['radiationPP'].fetch('dateCessationActivitePP'))
+        else
+          subnode.fetch('radiationPM') # Is always equal to "O".
+        end
+        if subnode.key?('commentaire')
+          record[:about][:body] = {
+            value: subnode['commentaire'],
+            media_type: 'text/plain',
+          }
+        end
+      end
+    end
   end
 
-  def parse_bilan(node, record)
-    entity_properties = registration(node, required: true)
-    entity_properties[:name] = node.fetch('denomination')
-
-    if node.key?('sigle')
-      entity_properties[:alternative_names] = [{
-        company_name: node['sigle'],
-        type: 'abbreviation',
-      }]
-    end
-
-    entity_properties[:company_type] = node['formeJuridique']
-
-    entity_properties[:registered_address] = address(node['adresse'])
+  def parse_bilan(node, xml_node, record)
+    record[:subjects] = [company(node, required: true)]
 
     if node.key?('depot')
       value = {
@@ -457,13 +485,8 @@ class FR_BODACC < Framework::Processor
         }
       end
 
-      record[:about] = compact(value)
+      record[:about] = value
     end
-
-    record[:subjects] = [{
-      entity_type: 'company',
-      entity_properties: compact(entity_properties),
-    }]
   end
 
 
@@ -472,13 +495,33 @@ class FR_BODACC < Framework::Processor
 
   # @return [Nori] an XML-to-JSON parser
   def parser
-    @parser ||= Nori.new
+    @parser ||= Nori.new(advanced_typecasting: false)
   end
 
   # @param [Hash] hash a hash
   # @return [Hash] a hash without keys with null values
   def compact(hash)
-    hash.select{|_,v| v}
+    hash.each do |key,value|
+      case value
+      when Array
+        hash[key] = value.map do |v|
+          compact(v)
+        end
+      when Hash
+        hash[key] = compact(value)
+      end
+    end
+
+    hash.reject do |_,value|
+      case value
+      when Array
+        value.empty?
+      when Hash
+        value.empty?
+      else
+        value.nil?
+      end
+    end
   end
 
   # @param value a value
@@ -517,90 +560,115 @@ class FR_BODACC < Framework::Processor
   # @param [Hash] hash a hash
   # @param [Hash] options options
   # @option options [Boolean] :required whether a registration is required
-  # @return [Hash] the values of the moral person
-  def moral_person(hash, options = {})
-    value = {
-      type: 'Moral person',
+  # @return [Hash] the values of the company
+  def company(hash, options = {})
+    entity_properties = registration(hash, options).merge({
       name: hash.fetch('denomination'),
       alternative_names: [],
-
-      # RCS-A only
-      registration: registration(hash, options),
-
-      # <personneMorale> in RCS-A and RCS-B only
       company_type: hash['formeJuridique'],
-      directors: hash['administration'],
+      # @see https://github.com/openc/openc-schema/issues/39
+      # capital(hash)
+    })
 
-      # <personneMorale> in RCS-B only
-      capital: capital(hash),
-    }
-
-    # <personneMorale> in RCS-A and RCS-B only
-    if hash.key?('nomCommercial')
-      value[:alternative_names] << {
-        company_name: hash['nomCommercial'],
-        type: 'trading',
-      }
-    end
-    if hash.key?('sigle')
-      value[:alternative_names] << {
-        company_name: hash['sigle'],
-        type: 'abbreviation',
-      }
+    # XXX remove after finishing rcs_a
+    if hash['capital']
+      debug(hash['capital'])
     end
 
-    # TODO Handle the alternate format for `administration`.
+    # TODO Handle other formats of `administration`.
     if hash['administration'] && !hash['administration'][/\b(?:Modification de la désignation d'un dirigeant : |devient|n'est plus)\b/]
       parts = hash['administration'].split(DIRECTORS_RE)
       parts[1..-2] = parts[1..-2].flat_map{|part| part.split(DIRECTOR_ROLES_RE, 2)}
 
       if parts.size.even?
-        value[:directors] = Hash[*parts]
+        entity_properties[:officers] = parts.each_slice(2) do |position,name|
+          {
+            name: name,
+            position: position,
+          }
+        end
       elsif hash['administration'][':']
-        debug("can't parse: #{parts.inspect}")
+        debug("administration: #{parts.inspect}")
       end
     end
 
-    compact(value)
+    if hash.key?('nomCommercial')
+      entity_properties[:alternative_names] << {
+        company_name: hash['nomCommercial'],
+        type: 'trading',
+      }
+    end
+    if hash.key?('sigle')
+      entity_properties[:alternative_names] << {
+        company_name: hash['sigle'],
+        type: 'abbreviation',
+      }
+    end
+
+    # @see https://github.com/openc/openc-schema/issues/39
+    # hash['activite']
+
+    entity_properties[:registered_address] = address(hash['adresse'])
+    entity_properties[:headquarters_address] = address(hash['siegeSocial'])
+    entity_properties[:mailing_address] = address(hash['etablissementPrincipal'])
+
+    {
+      entity_type: 'company',
+      entity_properties: entity_properties,
+    }
   end
 
   # @param [Hash] hash a hash
   # @param [Hash] options options
   # @option options [Boolean] :required whether a registration is required
-  # @return [Hash] the values of the physical person
-  def physical_person(hash, options = {})
-    value = {
-      type: 'Physical person',
-      family_name: hash.fetch('nom'),
-      given_name: hash.fetch('prenom'),
-      customary_name: hash['nomUsage'],
+  # @return [Hash] the values of the person
+  def person(hash, options = {})
+    entity_properties = registration(hash, options).merge({
+      name: {
+        family_name: hash['nomUsage'] || hash.fetch('nom'),
+        given_name: hash.fetch('prenom'),
+        birth_name: hash.fetch('nom'),
+      },
       alternative_names: [],
+      # XXX add comment after finishing rcs_a
+      # hash['nationnalite']
+    })
 
-      # RCS-A only
-      registration: registration(hash, options),
+    # XXX remove after finishing rcs_a
+    if hash['nationnalite']
+      debug("nationnalite: #{hash['nationnalite'].inspect}")
+    end
 
-      # <precedentProprietairePP> and <precedentExploitantPP> in RCS-A only
-      nature: hash['nature'],
+    # TODO `nature` is never set, so I don't know how to interpret it now, in
+    # case it is ever set later.
+    if hash['nature']
+      debug("nature: #{hash['nature'].inspect}")
+    end
 
-      # <personnePhysique> in RCS-A only
-      nationality: hash['nationnalite'],
-    }
-
-    # <personnePhysique> in RCS-A and RCS-B only
     if hash.key?('pseudonyme')
-      value[:alternative_names] << {
-        name: hash['pseudonyme'],
+      entity_properties[:alternative_names] << {
+        company_name: hash['pseudonyme'],
         type: 'unknown',
       }
     end
     if hash.key?('nomCommercial')
-      value[:alternative_names] << {
-        name: hash['nomCommercial'],
+      entity_properties[:alternative_names] << {
+        company_name: hash['nomCommercial'],
         type: 'trading',
       }
     end
 
-    compact(value)
+    # @see https://github.com/openc/openc-schema/issues/39
+    # hash['activite']
+
+    entity_properties[:registered_address] = address(hash['adresse'])
+    entity_properties[:headquarters_address] = address(hash['siegeSocial'])
+    entity_properties[:mailing_address] = address(hash['etablissementPrincipal'])
+
+    {
+      entity_type: 'person',
+      entity_properties: entity_properties,
+    }
   end
 
   # @param [Hash] hash a hash
@@ -616,10 +684,10 @@ class FR_BODACC < Framework::Processor
       node = hash['numeroImmatriculation']
 
       {
-        company_number: "#{node.fetch('numeroIdentification', node.fetch('numeroIdentificationRCS'))} #{node.fetch('codeRCS')} #{node.fetch('nomGreffeImmat')}",
+        company_number: "#{node['numeroIdentification'] || node.fetch('numeroIdentificationRCS')} #{node.fetch('codeRCS')} #{node.fetch('nomGreffeImmat')}",
       }
-    elsif options[:required]
-      hash.fetch('nonInscrit') && {}
+    elsif options[:required] && hash.fetch('nonInscrit')
+      {}
     else
       {}
     end
@@ -637,12 +705,12 @@ class FR_BODACC < Framework::Processor
 
       if node.key?('montantCapital')
         {
-          amount_value: node['montantCapital'],
+          value: node['montantCapital'],
           currency: node.fetch('devise'),
         }
       else
         {
-          amount: node.fetch('capitalVariable'),
+          value: node.fetch('capitalVariable'),
         }
       end
     end
@@ -670,7 +738,7 @@ class FR_BODACC < Framework::Processor
       }
     end
 
-    compact(value)
+    value
   end
 
   # @param [Hash] hash a hash
@@ -686,10 +754,10 @@ class FR_BODACC < Framework::Processor
       else
         node = hash.fetch('etranger')
 
-        compact({
+        {
           street_address: node.fetch('adresse'), # a complete address
           country_name: node['pays'],
-        })
+        }
       end
     end
   end
@@ -698,7 +766,7 @@ class FR_BODACC < Framework::Processor
   # @return [Hash] the values of the French address
   def france_address(hash)
     if hash
-      compact({
+      {
         # In INSPIRE, the terms may be:
         # * locator_designator_address_number
         # * thoroughfare_type
@@ -719,7 +787,7 @@ class FR_BODACC < Framework::Processor
         postal_code: hash.fetch('codePostal'), # can start with "0"
         country: 'France',
         country_code: 'FR',
-      })
+      }
     end
   end
 end

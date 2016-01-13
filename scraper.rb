@@ -6,8 +6,6 @@ require 'net/ftp'
 require 'rubygems/package'
 require 'tempfile'
 
-require 'nori'
-
 class FR_BODACC < Framework::Processor
   # @see "4. REPARTITION DES ANNONCES BODACC"
   FILENAME_PATTERNS = [
@@ -192,8 +190,7 @@ class FR_BODACC < Framework::Processor
           url: options[:issue_url],
           other_attributes: {
             format: format,
-            data: parser.parse(xml),
-            xml: format == 'PCL' && xml.force_encoding('iso-8859-1').encode('utf-8'), # the order of XML elements matters for PCL only
+            data: xml.force_encoding('iso-8859-1').encode('utf-8'), # the order of XML elements matters for PCL only
           },
           default_attributes: {
             source_url: options[:source_url],
@@ -211,11 +208,6 @@ class FR_BODACC < Framework::Processor
   # @return [String] the present UTC time in ISO 8601 format
   def now
     Time.now.utc.strftime('%Y-%m-%dT%H:%M:%SZ')
-  end
-
-  # @return [Nori] an XML-to-JSON parser
-  def parser
-    @parser ||= Nori.new
   end
 
   # Uncompresses a file.
