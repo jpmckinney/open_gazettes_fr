@@ -256,7 +256,7 @@ else
     '.',
     '.',
     0,
-    'WARN',
+    'INFO',
     STDERR,
   ]
 end
