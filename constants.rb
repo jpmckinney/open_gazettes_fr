@@ -1,3 +1,5 @@
+# coding: utf-8
+
 TOP_LEVEL_NODE = {
   'RCS-A' => 'RCS_A_IMMAT', # XSD has "RCS-A_IMMAT"
   'PCL' => 'PCL_REDIFF',
