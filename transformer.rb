@@ -92,6 +92,7 @@ class FR_BODACC < Framework::Processor
               object: {
                 issue: {
                   identifier: subnode.fetch('numeroParution'),
+                  # "BODACC A", "BODACC B", or "BODACC C"
                   edition_id: subnode.fetch('nomPublication'),
                 },
                 date_published: date_format(subnode.fetch('dateParution'), ['%Y-%m-%d', '%e %B %Y']),
@@ -292,14 +293,14 @@ class FR_BODACC < Framework::Processor
         end
 
       when 'numeroImmatriculation'
-        # `codeRCS` and `nomGreffeImmat` are informational.
+        # 9 digits. `codeRCS` and `nomGreffeImmat` are informational.
         entity_properties[:company_number] = subnode.fetch('numeroIdentificationRCS').gsub(' ', '')
 
       when 'nonInscrit'
         # Do nothing.
 
       when 'inscriptionRM'
-        # `codeRM` and `numeroDepartement` are informational.
+        # 9 digits. `codeRM` and `numeroDepartement` are informational.
         if entity_properties.key?(:company_number)
           assert("expected numeroIdentificationRCS (#{subnode['numeroIdentificationRCS']}) to equal numeroIdentificationRM (#{subnode['numeroIdentificationRM']})"){subnode['numeroIdentificationRCS'] == subnode['numeroIdentificationRM']}
         else
@@ -625,7 +626,7 @@ class FR_BODACC < Framework::Processor
       node = hash['numeroImmatriculation']
 
       {
-        # `codeRCS` and `nomGreffeImmat` are informational.
+        # 9 digits. `codeRCS` and `nomGreffeImmat` are informational.
         company_number: (node['numeroIdentification'] || node.fetch('numeroIdentificationRCS')).gsub(' ', ''),
       }
     elsif options[:required] && hash.fetch('nonInscrit')
@@ -744,7 +745,7 @@ class FR_BODACC < Framework::Processor
           hash.values_at('BP', 'localite').compact.map(&:strip).join(' '),
         ].reject(&:empty?).join("\n"),
         locality: hash.fetch('ville'),
-        postal_code: hash.fetch('codePostal'), # can start with "0"
+        postal_code: hash.fetch('codePostal'), # 5 digits, can start with "0"
         country: 'France',
         country_code: 'FR',
       }
