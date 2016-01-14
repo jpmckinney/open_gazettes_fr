@@ -42,6 +42,8 @@ Run the transformer:
 
 * [BODACC editions](http://www.bodacc.fr/Bodacc/Mieux-connaitre-le-Bodacc#Avis)
 
+Once you have a company number, you can compose the URL to a company page like https://www.infogreffe.fr/societes/entreprise-societe/303514160
+
 ## XML Schema
 
 On 2013-05-24, `RCI_V10.xsd` was updated to change the `maxLength` of `NomDenomination_Type` from `200` to `1000`, but the version number of the XSD file was not changed.
