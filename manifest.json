@@ -6,6 +6,7 @@
   "data_type": "primary data",
   "identifying_fields": ["uid"],
   "files": [
+    "constants.rb",
     "framework.rb",
     "scraper.rb",
     "transformer.rb"
