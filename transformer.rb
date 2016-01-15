@@ -314,6 +314,7 @@ class FR_BODACC < Framework::Processor
         }
 
       when 'activite'
+        # TODO
         # @see https://github.com/openc/openc-schema/issues/39
         # subnode
 
@@ -517,6 +518,7 @@ class FR_BODACC < Framework::Processor
       name: hash.fetch('denomination'),
       alternative_names: [],
       company_type: hash['formeJuridique'],
+      # TODO
       # @see https://github.com/openc/openc-schema/issues/39
       # capital(hash)
     })
@@ -534,6 +536,9 @@ class FR_BODACC < Framework::Processor
           }
         end
       elsif hash['administration'][':']
+        # TODO
+        # @see https://github.com/openc/openc-schema/issues/39
+        # We should store the administration, as modifications can be made to it in RCS-B.
         debug("administration: #{parts.inspect}")
       end
     end
@@ -551,6 +556,7 @@ class FR_BODACC < Framework::Processor
       }
     end
 
+    # TODO
     # @see https://github.com/openc/openc-schema/issues/39
     # hash['activite']
 
@@ -576,6 +582,7 @@ class FR_BODACC < Framework::Processor
         birth_name: hash.fetch('nom'),
       },
       alternative_names: [],
+      # TODO
       # @see https://github.com/openc/openc-schema/issues/42
       # Has values like "belge", "française", "haïtienne", etc.
       # hash['nationnalite']
@@ -600,6 +607,7 @@ class FR_BODACC < Framework::Processor
       }
     end
 
+    # TODO
     # @see https://github.com/openc/openc-schema/issues/39
     # hash['activite']
 
