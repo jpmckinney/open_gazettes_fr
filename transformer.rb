@@ -635,6 +635,7 @@ class FR_BODACC < Framework::Processor
 
       {
         # 9 digits. `codeRCS` and `nomGreffeImmat` are informational.
+        jurisdiction_code: 'fr',
         company_number: (node['numeroIdentification'] || node.fetch('numeroIdentificationRCS')).gsub(' ', ''),
       }
     elsif options[:required] && hash.fetch('nonInscrit')
