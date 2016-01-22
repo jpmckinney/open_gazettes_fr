@@ -68,7 +68,7 @@ module Framework
     end
 
     def assert(message)
-      raise message unless yield
+      error(message) unless yield
     end
   end
 end

@@ -180,8 +180,8 @@ class FR_BODACC < Framework::Processor
     if subnode.key?("categorie#{act_type.capitalize}")
       # NOTE These can be mapped to other values using the `CATEGORIES` constant.
       record[:about][:classification] = [{
-        scheme: 'fr_bodacc_categorie',
-        value: subnode["categorie#{act_type.capitalize}"],
+        code_scheme_id: 'fr_bodacc_categorie',
+        code: subnode["categorie#{act_type.capitalize}"],
       }]
     end
 
@@ -204,16 +204,7 @@ class FR_BODACC < Framework::Processor
     end
 
     record[:about][:locations] = to_array(node['etablissement']).map do |subnode|
-      property_type = if PROPERTY_TYPES.key?(subnode['qualiteEtablissement'])
-        PROPERTY_TYPES[subnode['qualiteEtablissement']]
-      else
-        # Unrecognized values are rare.
-        debug("qualiteEtablissement: #{subnode['qualiteEtablissement'].inspect}")
-        subnode['qualiteEtablissement']
-      end
-
-      {
-        type: property_type,
+      value = {
         name: subnode['enseigne'],
         activity: subnode['activite'],
         address: france_address(subnode['adresse']),
@@ -221,6 +212,17 @@ class FR_BODACC < Framework::Processor
         # `PROPERTY_ORIGINS_RE` constants, with rare unrecognized values.
         origin: subnode['origineFonds'],
       }
+
+      if subnode['qualiteEtablissement']
+        property_type = subnode['qualiteEtablissement'].downcase
+        if PROPERTY_TYPES.key?(property_type)
+          value[:type] = PROPERTY_TYPES[property_type]
+        else # Unrecognized values are rare.
+          info("qualiteEtablissement: #{property_type.inspect}")
+        end
+      end
+
+      value
     end
 
     record[:about][:previous_owners] = to_array(node['precedentProprietairePM']).map do |subnode|
@@ -305,7 +307,8 @@ class FR_BODACC < Framework::Processor
       when 'inscriptionRM'
         # 9 digits. `codeRM` and `numeroDepartement` are informational.
         if entity_properties.key?(:company_number)
-          assert("expected numeroIdentificationRCS (#{entity_properties[:company_number]}) to equal numeroIdentificationRM (#{subnode['numeroIdentificationRM']})"){entity_properties[:company_number] == subnode['numeroIdentificationRM'].gsub(' ', '')}
+          expected = subnode['numeroIdentificationRM'].gsub(' ', '')
+          assert("expected numeroIdentificationRCS (#{entity_properties[:company_number]}) to equal numeroIdentificationRM (#{expected})"){entity_properties[:company_number] == expected}
         else
           entity_properties[:jurisdiction_code] = 'fr'
           entity_properties[:company_number] = subnode.fetch('numeroIdentificationRM').gsub(' ', '')
@@ -349,7 +352,7 @@ class FR_BODACC < Framework::Processor
   def parse_div(node, xml_node, record)
     # Example: www.bodacc.fr/annonce/detail/BXA156666801008
     record[:about] = {
-      type: 'general',
+      type: 'other',
       body: {
         value: node.fetch('contenuAnnonce'),
         media_type: 'text/plain',
@@ -434,8 +437,8 @@ class FR_BODACC < Framework::Processor
       record[:about] = {
         type: 'filing',
         classification: [{
-          scheme: 'fr_bodacc_typeDepot',
-          value: node['depot'].fetch('typeDepot'), # code list
+          code_scheme_id: 'fr_bodacc_typeDepot',
+          code: node['depot'].fetch('typeDepot'), # code list
         }],
         closing_date: date_format(node['depot'].fetch('dateCloture')),
       }
@@ -700,11 +703,11 @@ class FR_BODACC < Framework::Processor
     value = {
       type: 'judgment',
       classification: [{
-        scheme: 'fr_bodacc_famille',
-        value: hash.fetch('famille'), # code list
+        code_scheme_id: 'fr_bodacc_famille',
+        code: hash.fetch('famille'), # code list
       }, {
-        scheme: 'fr_bodacc_nature',
-        value: hash.fetch('nature'), # code list
+        code_scheme_id: 'fr_bodacc_nature',
+        code: hash.fetch('nature'), # code list
       }],
       date: date_format(hash['date'], ['%e %B %Y']),
     }
