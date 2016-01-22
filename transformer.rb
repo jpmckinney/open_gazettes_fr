@@ -305,7 +305,7 @@ class FR_BODACC < Framework::Processor
       when 'inscriptionRM'
         # 9 digits. `codeRM` and `numeroDepartement` are informational.
         if entity_properties.key?(:company_number)
-          assert("expected numeroIdentificationRCS (#{subnode['numeroIdentificationRCS']}) to equal numeroIdentificationRM (#{subnode['numeroIdentificationRM']})"){subnode['numeroIdentificationRCS'] == subnode['numeroIdentificationRM']}
+          assert("expected numeroIdentificationRCS (#{entity_properties[:company_number]}) to equal numeroIdentificationRM (#{subnode['numeroIdentificationRM']})"){entity_properties[:company_number] == subnode['numeroIdentificationRM'].gsub(' ', '')}
         else
           entity_properties[:jurisdiction_code] = 'fr'
           entity_properties[:company_number] = subnode.fetch('numeroIdentificationRM').gsub(' ', '')
