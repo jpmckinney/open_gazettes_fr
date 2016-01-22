@@ -45,10 +45,12 @@ class FR_BODACC < Framework::Processor
             publisher: {
               name: "Direction de l'information légale et administrative",
               url: 'http://www.dila.premier-ministre.gouv.fr/',
+              media_type: 'text/html',
             },
             jurisdiction_code: 'fr',
             title: 'Bulletin officiel des annonces civiles et commerciales',
             url: 'http://www.bodacc.fr/',
+            media_type: 'text/html',
           },
           identifier: issue.fetch('identifier'),
           edition_id: issue.fetch('edition_id'),
@@ -161,7 +163,7 @@ class FR_BODACC < Framework::Processor
     subnode = node.fetch('acte').fetch(act_type) || {}
 
     record[:about] = {
-      kind: ACT_TYPES.fetch(act_type),
+      type: ACT_TYPES.fetch(act_type),
       registration_date: date_format(subnode['dateImmatriculation']),
       activity_start_date: date_format(subnode['dateCommencementActivite']),
       effective_date: date_format(subnode['dateEffet'], ['%e %B %Y']),
@@ -201,7 +203,7 @@ class FR_BODACC < Framework::Processor
       end
     end
 
-    record[:about][:properties] = to_array(node['etablissement']).map do |subnode|
+    record[:about][:locations] = to_array(node['etablissement']).map do |subnode|
       property_type = if PROPERTY_TYPES.key?(subnode['qualiteEtablissement'])
         PROPERTY_TYPES[subnode['qualiteEtablissement']]
       else
@@ -343,10 +345,14 @@ class FR_BODACC < Framework::Processor
   end
 
   def parse_div(node, xml_node, record)
-    record[:title] = node['titreAnnonce']
-    record[:body] = {
-      value: node.fetch('contenuAnnonce'),
-      media_type: 'text/plain',
+    # Example: www.bodacc.fr/annonce/detail/BXA156666801008
+    record[:about] = {
+      type: 'general',
+      title: node['titreAnnonce'],
+      body: {
+        value: node.fetch('contenuAnnonce'),
+        media_type: 'text/plain',
+      },
     }
   end
 
@@ -375,7 +381,7 @@ class FR_BODACC < Framework::Processor
       subnode = node['modificationsGenerales']
       if subnode
         record[:about] = {
-          kind: 'general modifications',
+          type: 'modification',
           activity_start_date: date_format(subnode['dateCommencementActivite']),
           effective_date: date_format(subnode['dateEffet']),
           body: {
@@ -399,13 +405,14 @@ class FR_BODACC < Framework::Processor
           warn("expected one of radiationPP or radiationPM, got both")
         end
 
+        # Example: http://www.bodacc.fr/annonce/detail/BXB15033000184A
         record[:about] = {
-          kind: 'struck off',
+          type: 'striking off',
         }
         if subnode.key?('radiationPP')
           record[:about][:activity_end_date] = date_format(subnode['radiationPP'].fetch('dateCessationActivitePP'))
         else
-          subnode.fetch('radiationPM') # Is always equal to "O".
+          assert("expected radiationPM to be 'O', got #{subnode['radiationPM'].inspect}"){subnode.fetch('radiationPM') == 'O'}
         end
         if subnode.key?('commentaire')
           record[:about][:body] = {
@@ -418,11 +425,12 @@ class FR_BODACC < Framework::Processor
   end
 
   def parse_bilan(node, xml_node, record)
+    # Example: http://www.bodacc.fr/annonce/detail/BDC15000100148X
     record[:subjects] = [company(node, required: true)]
 
     if node.key?('depot')
-      value = {
-        kind: 'filing',
+      record[:about] = {
+        type: 'filing',
         classification: [{
           scheme: 'fr_bodacc_typeDepot',
           value: node['depot'].fetch('typeDepot'), # code list
@@ -431,13 +439,11 @@ class FR_BODACC < Framework::Processor
       }
 
       if node['depot'].key?('descriptif')
-        value[:body] = {
+        record[:about][:body] = {
           value: node['depot']['descriptif'],
           media_type: 'text/plain',
         }
       end
-
-      record[:about] = value
     end
   end
 
@@ -690,7 +696,7 @@ class FR_BODACC < Framework::Processor
   # @return [Hash] the values of the judgment
   def judgment(hash)
     value = {
-      kind: 'judgment',
+      type: 'judgment',
       classification: [{
         scheme: 'fr_bodacc_famille',
         value: hash.fetch('famille'), # code list
@@ -726,7 +732,7 @@ class FR_BODACC < Framework::Processor
 
         {
           street_address: node.fetch('adresse'), # a complete address
-          country_name: node['pays'],
+          country: node['pays'],
         }
       end
     end
