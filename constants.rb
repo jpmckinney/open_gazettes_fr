@@ -16,9 +16,9 @@ TYPES = {
 }.freeze
 
 ACT_TYPES = {
-  'creation' => 'creation',
-  'immatriculation' => 'registration',
-  'vente' => 'sale',
+  'creation' => 'creation of subjects',
+  'immatriculation' => 'registration of locations',
+  'vente' => 'sale of locations',
 }
 
 MONTH_NAMES = {

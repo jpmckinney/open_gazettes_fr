@@ -40,6 +40,7 @@ class FR_BODACC < Framework::Processor
       date_published = date_published.strftime('%Y-%m-%d')
 
       default_record = {
+        date_published: date_published,
         issue: {
           publication: {
             publisher: {
@@ -56,7 +57,6 @@ class FR_BODACC < Framework::Processor
           edition_id: issue.fetch('edition_id'),
           url: issue['url'],
         },
-        date_published: date_published,
         source_url: issue.fetch('default_attributes').fetch('source_url'),
         sample_date: issue.fetch('default_attributes').fetch('retrieved_at'),
         retrieved_at: issue.fetch('default_attributes').fetch('retrieved_at'),
@@ -92,13 +92,13 @@ class FR_BODACC < Framework::Processor
             record[:update_action] = {
               type: type,
               object: {
+                identifier: Integer(subnode.fetch('numeroAnnonce')),
+                date_published: date_format(subnode.fetch('dateParution'), ['%Y-%m-%d', '%e %B %Y']),
                 issue: {
                   identifier: subnode.fetch('numeroParution'),
                   # "BODACC A", "BODACC B", or "BODACC C"
                   edition_id: subnode.fetch('nomPublication'),
                 },
-                date_published: date_format(subnode.fetch('dateParution'), ['%Y-%m-%d', '%e %B %Y']),
-                identifier: Integer(subnode.fetch('numeroAnnonce')),
               },
             }
           end
@@ -111,8 +111,8 @@ class FR_BODACC < Framework::Processor
           assert("expected typeAnnonce to be 'annonce', got '#{type_raw}'"){type_raw == 'annonce'}
         end
 
-        record[:uid] = node.fetch('nojo')
         record[:identifier] = Integer(node.fetch('numeroAnnonce'))
+        record[:uid] = node.fetch('nojo')
         record[:url] = "http://www.bodacc.fr/annonce/detail/#{record[:uid]}"
         record[:media_type] = 'text/html'
 
@@ -176,7 +176,7 @@ class FR_BODACC < Framework::Processor
       }
     end
 
-    # Required by XML schema, but sometimes missing
+    # Required by XML schema, but sometimes missing.
     if subnode.key?("categorie#{act_type.capitalize}")
       # NOTE These can be mapped to other values using the `CATEGORIES` constant.
       record[:about][:classification] = [{
@@ -252,8 +252,8 @@ class FR_BODACC < Framework::Processor
     entity_type = nil
     entity_properties = Marshal.load(Marshal.dump(default_entity_properties))
 
+    # Instead of nesting related nodes, PCL uses node order to group nodes.
     xml_node.xpath('./identifiantClient/following-sibling::*').each do |sibling|
-      # Instead of nesting related nodes, PCL uses node order to group nodes.
       if %w(personneMorale personnePhysique).include?(sibling.name)
         if entity_type
           record[:subjects] << {
@@ -296,6 +296,7 @@ class FR_BODACC < Framework::Processor
 
       when 'numeroImmatriculation'
         # 9 digits. `codeRCS` and `nomGreffeImmat` are informational.
+        entity_properties[:jurisdiction_code] = 'fr'
         entity_properties[:company_number] = subnode.fetch('numeroIdentificationRCS').gsub(' ', '')
 
       when 'nonInscrit'
@@ -306,6 +307,7 @@ class FR_BODACC < Framework::Processor
         if entity_properties.key?(:company_number)
           assert("expected numeroIdentificationRCS (#{subnode['numeroIdentificationRCS']}) to equal numeroIdentificationRM (#{subnode['numeroIdentificationRM']})"){subnode['numeroIdentificationRCS'] == subnode['numeroIdentificationRM']}
         else
+          entity_properties[:jurisdiction_code] = 'fr'
           entity_properties[:company_number] = subnode.fetch('numeroIdentificationRM').gsub(' ', '')
         end
 
@@ -348,11 +350,11 @@ class FR_BODACC < Framework::Processor
     # Example: www.bodacc.fr/annonce/detail/BXA156666801008
     record[:about] = {
       type: 'general',
-      title: node['titreAnnonce'],
       body: {
         value: node.fetch('contenuAnnonce'),
         media_type: 'text/plain',
       },
+      title: node['titreAnnonce'],
     }
   end
 
@@ -381,13 +383,13 @@ class FR_BODACC < Framework::Processor
       subnode = node['modificationsGenerales']
       if subnode
         record[:about] = {
-          type: 'modification',
-          activity_start_date: date_format(subnode['dateCommencementActivite']),
-          effective_date: date_format(subnode['dateEffet']),
+          type: 'modification of subjects',
           body: {
             value: subnode.fetch('descriptif'),
             media_type: 'text/plain',
           },
+          activity_start_date: date_format(subnode['dateCommencementActivite']),
+          effective_date: date_format(subnode['dateEffet']),
         }
 
         record[:about][:previous_operators] = to_array(subnode['precedentExploitantPM']).each do |entity|
@@ -407,7 +409,7 @@ class FR_BODACC < Framework::Processor
 
         # Example: http://www.bodacc.fr/annonce/detail/BXB15033000184A
         record[:about] = {
-          type: 'striking off',
+          type: 'striking off of subjects',
         }
         if subnode.key?('radiationPP')
           record[:about][:activity_end_date] = date_format(subnode['radiationPP'].fetch('dateCessationActivitePP'))
@@ -644,7 +646,7 @@ class FR_BODACC < Framework::Processor
         jurisdiction_code: 'fr',
         company_number: (node['numeroIdentification'] || node.fetch('numeroIdentificationRCS')).gsub(' ', ''),
       }
-    elsif options[:required] && hash.fetch('nonInscrit')
+    elsif options[:required] && hash.fetch('nonInscrit') # ensure valid parsing
       {}
     else
       {}
