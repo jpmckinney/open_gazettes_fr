@@ -593,10 +593,7 @@ class FR_BODACC < Framework::Processor
         birth_name: hash.fetch('nom'),
       },
       alternative_names: [],
-      # TODO
-      # @see https://github.com/openc/openc-schema/issues/42
-      # Has values like "belge", "française", "haïtienne", etc.
-      # hash['nationnalite']
+      nationality: hash['nationnalite'], # "belge", "française", "haïtienne", etc.
     })
 
     # TODO `nature` is never set, so I don't know how to interpret it now, in
