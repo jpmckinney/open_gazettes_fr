@@ -6,6 +6,7 @@ require_relative 'constants'
 require 'set'
 
 require 'active_support/core_ext/hash/deep_merge'
+require 'active_support/core_ext/hash/slice'
 require 'nokogiri'
 require 'nori'
 
