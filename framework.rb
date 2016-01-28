@@ -1,6 +1,8 @@
 require 'fileutils'
 require 'forwardable'
 require 'logger'
+require 'net/ftp'
+require 'tempfile'
 
 require 'turbotlib'
 require 'faraday'
@@ -44,6 +46,41 @@ module Framework
           end
         end
         connection.adapter Faraday.default_adapter
+      end
+    end
+  end
+
+  class FTPClient < Net::FTP
+    extend Forwardable
+
+    attr_accessor :logger
+    attr_accessor :root_path
+
+    def_delegators :@logger, :debug, :info, :warn, :error, :fatal
+
+    # Downloads a remote file.
+    #
+    # @param [String] remotefile the name of the remote file
+    # @return [File,Tempfile] a local file with the remote file's contents
+    def download(remotefile)
+      info("get #{remotefile}")
+
+      path = File.join(root_path, pwd, remotefile)
+
+      if Env.development? && File.exist?(path)
+        File.open(path)
+      else
+        if Env.development?
+          File.open(path, 'w') do |f|
+            getbinaryfile(remotefile, f.path)
+            f
+          end
+        else
+          Tempfile.open([remotefile, '.Z']) do |f|
+            getbinaryfile(remotefile, f.path)
+            f
+          end
+        end
       end
     end
   end

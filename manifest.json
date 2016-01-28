@@ -17,7 +17,7 @@
     "identifying_fields": ["uid"]
   }],
   "frequency": "daily",
-  "incremental": true,
+  "manually_end_run": true,
   "publisher": {
     "name": "James McKinney",
     "url": "https://twitter.com/mckinneyjames",

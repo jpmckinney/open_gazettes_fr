@@ -2,9 +2,7 @@
 
 require_relative 'framework'
 
-require 'net/ftp'
 require 'rubygems/package'
-require 'tempfile'
 
 class FR_BODACC < Framework::Processor
   # @see "4. REPARTITION DES ANNONCES BODACC"
@@ -15,40 +13,6 @@ class FR_BODACC < Framework::Processor
     /\A(RCS-B)_BX(B)(\d{8})\.taz\z/,
     /\A(BILAN)_BX(C)(\d{8})\.taz\z/,
   ].freeze
-
-  class FR_BODACC_FTP < Net::FTP
-    extend Forwardable
-
-    attr_accessor :logger
-
-    def_delegators :@logger, :debug, :info, :warn, :error, :fatal
-
-    # Downloads a remote file.
-    #
-    # @param [String] remotefile the name of the remote file
-    # @return [File,Tempfile] a local file with the remote file's contents
-    def download(remotefile)
-      info("get #{remotefile}")
-
-      path = File.expand_path(File.join('data', 'echanges.dila.gouv.fr', pwd, remotefile), Dir.pwd)
-
-      if Env.development? && File.exist?(path)
-        File.open(path)
-      else
-        if Env.development?
-          File.open(path, 'w') do |f|
-            getbinaryfile(remotefile, f.path)
-            f
-          end
-        else
-          Tempfile.open([remotefile, '.Z']) do |f|
-            getbinaryfile(remotefile, f.path)
-            f
-          end
-        end
-      end
-    end
-  end
 
   class DataFile
     # @return [String] the filename
@@ -81,15 +45,16 @@ class FR_BODACC < Framework::Processor
   end
 
   class RemoteTazFile < DataFile
-    # @note `@arg` is a `FR_BODACC_FTP`.
+    # @note `@arg` is a `FTPClient`.
     def path
       @arg.download(name).path
     end
   end
 
   def scrape
-    FR_BODACC_FTP.open('echanges.dila.gouv.fr') do |ftp|
+    Framework::FTPClient.open('echanges.dila.gouv.fr') do |ftp|
       ftp.logger = @logger
+      ftp.root_path = File.expand_path(File.join('data', 'echanges.dila.gouv.fr'), Dir.pwd)
       ftp.passive = true
 
       info('login')
