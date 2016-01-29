@@ -107,5 +107,10 @@ module Framework
     def assert(message)
       error(message) unless yield
     end
+
+    # @return [String] the present UTC time in ISO 8601 format
+    def now
+      Time.now.utc.strftime('%Y-%m-%dT%H:%M:%SZ')
+    end
   end
 end

@@ -175,11 +175,6 @@ class FR_BODACC < Framework::Processor
 
   ### Helpers
 
-  # @return [String] the present UTC time in ISO 8601 format
-  def now
-    Time.now.utc.strftime('%Y-%m-%dT%H:%M:%SZ')
-  end
-
   # Uncompresses a file.
   #
   # @param [String] a file path to a compressed file
