@@ -2,7 +2,6 @@ require 'fileutils'
 require 'forwardable'
 require 'logger'
 require 'net/ftp'
-require 'tempfile'
 
 require 'turbotlib'
 require 'faraday'
@@ -61,7 +60,7 @@ module Framework
     # Downloads a remote file.
     #
     # @param [String] remotefile the name of the remote file
-    # @return [File,Tempfile] a local file with the remote file's contents
+    # @return [File] a local file with the remote file's contents
     def download(remotefile)
       info("get #{remotefile}")
 
@@ -70,16 +69,9 @@ module Framework
       if Env.development? && File.exist?(path)
         File.open(path)
       else
-        if Env.development?
-          File.open(path, 'w') do |f|
-            getbinaryfile(remotefile, f.path)
-            f
-          end
-        else
-          Tempfile.open([remotefile, '.Z']) do |f|
-            getbinaryfile(remotefile, f.path)
-            f
-          end
+        File.open(path, 'w') do |f|
+          getbinaryfile(remotefile, f.path)
+          f
         end
       end
     end
