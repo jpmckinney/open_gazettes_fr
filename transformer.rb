@@ -541,7 +541,7 @@ class FR_BODACC < Framework::Processor
       parts[1..-2] = parts[1..-2].flat_map{|part| part.split(DIRECTOR_ROLES_RE, 2)}
 
       if parts.size.even?
-        entity_properties[:officers] = parts.each_slice(2) do |position,name|
+        entity_properties[:officers] = parts.each_slice(2).map do |position,name|
           {
             name: name,
             position: position,
