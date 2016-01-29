@@ -69,6 +69,7 @@ module Framework
       if Env.development? && File.exist?(path)
         File.open(path)
       else
+        FileUtils.mkdir_p(File.dirname(path))
         File.open(path, 'w') do |f|
           getbinaryfile(remotefile, f.path)
           f
