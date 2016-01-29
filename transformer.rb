@@ -396,11 +396,11 @@ class FR_BODACC < Framework::Processor
           effective_date: date_format(subnode['dateEffet']),
         }
 
-        record[:about][:previous_operators] = to_array(subnode['precedentExploitantPM']).each do |entity|
+        record[:about][:previous_operators] = to_array(subnode['precedentExploitantPM']).map do |entity|
           company(entity, required: true)
         end
 
-        record[:about][:previous_operators] += to_array(subnode['precedentExploitantPP']).each do |entity|
+        record[:about][:previous_operators] += to_array(subnode['precedentExploitantPP']).map do |entity|
           person(entity)
         end
       end
