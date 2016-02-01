@@ -55,7 +55,7 @@ class FR_BODACC < Framework::Processor
   def scrape
     Framework::FTPClient.open('echanges.dila.gouv.fr') do |ftp|
       ftp.logger = @logger
-      ftp.root_path = File.expand_path(File.join('data', 'echanges.dila.gouv.fr'), @output_dir)
+      ftp.root_path = File.expand_path('echanges.dila.gouv.fr', @output_dir)
       ftp.passive = true
 
       info('login')
@@ -206,7 +206,7 @@ end
 # We can't use keyword arguments like in Pupa until Ruby 2.
 args = if Env.development?
   [
-    Dir.pwd, # output_dir
+    File.expand_path('data', Dir.pwd), # output_dir
     File.expand_path('_cache', Dir.pwd), # cache_dir
     0,
     'INFO', # level
