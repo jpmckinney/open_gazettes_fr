@@ -72,8 +72,8 @@ module Framework
         FileUtils.mkdir_p(File.dirname(path))
         File.open(path, 'w') do |f|
           getbinaryfile(remotefile, f.path)
-          f
         end
+        File.open(path)
       end
     end
   end
