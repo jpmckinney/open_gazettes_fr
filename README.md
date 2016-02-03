@@ -20,6 +20,10 @@ Run the scraper:
 
     TURBOT_ENV=development ruby scraper.rb
 
+Or:
+
+    turbot bots:dump
+
 Change the log level:
 
     TURBOT_LEVEL=DEBUG ruby scraper.rb
