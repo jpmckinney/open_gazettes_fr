@@ -39,7 +39,7 @@ module Framework
       Faraday.new do |connection|
         connection.request :url_encoded
         connection.use Faraday::Response::Logger, Logger.new('faraday', level, logdev)
-        if defined?(FaradayMiddleware)
+        if defined?(FaradayMiddleware) && cache_dir
           connection.response :caching do
             ActiveSupport::Cache::FileStore.new(cache_dir, expires_in: expires_in)
           end
