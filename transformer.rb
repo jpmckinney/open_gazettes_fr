@@ -774,16 +774,16 @@ end
 # We can't use keyword arguments like in Pupa until Ruby 2.
 args = if Env.development?
   [
-    '.',
-    '.',
-    0,
-    'INFO', # level
+    File.expand_path('_data', Dir.pwd), # output_dir
+    File.expand_path('_cache', Dir.pwd), # cache_dir
+    2592000, # expires_in, 30 days
+    ENV['TURBOT_LEVEL'] || 'INFO', # level
     STDERR, # logdev
   ]
 else
   [
-    '.',
-    '.',
+    Turbotlib.data_dir,
+    nil,
     0,
     'WARN',
     STDERR,

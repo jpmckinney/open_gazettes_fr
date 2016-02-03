@@ -20,17 +20,29 @@ Run the scraper:
 
     TURBOT_ENV=development ruby scraper.rb
 
+Change the log level:
+
+    TURBOT_LEVEL=DEBUG ruby scraper.rb
+
+See log messages only:
+
+    TURBOT_QUIET=1 ruby scraper.rb
+
 Run a specific year:
 
     year=2015 TURBOT_ENV=development ruby scraper.rb
 
+Start at a specific issue number:
+
+    from_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
+
+Stop at a specific issue number:
+
+    to_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
+
 Run a specific format:
 
     format=RCS-A TURBOT_ENV=development ruby scraper.rb
-
-Start from a specific issue number:
-
-    from_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
 
 ### Transformed data
 

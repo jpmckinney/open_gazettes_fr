@@ -208,8 +208,8 @@ args = if Env.development?
   [
     File.expand_path('data', Dir.pwd), # output_dir
     File.expand_path('_cache', Dir.pwd), # cache_dir
-    0,
-    'INFO', # level
+    2592000, # expires_in, 30 days
+    ENV['TURBOT_LEVEL'] || 'INFO', # level
     STDERR, # logdev
   ]
 else
@@ -217,7 +217,7 @@ else
     Turbotlib.data_dir,
     nil,
     0,
-    'DEBUG',
+    'WARN',
     STDERR,
   ]
 end
