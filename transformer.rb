@@ -439,6 +439,7 @@ class FR_BODACC < Framework::Processor
         type: 'filing',
         classification: [{
           code_scheme_id: 'fr_bodacc_typeDepot',
+          # @see https://github.com/openc/open_gazettes_fr_bodacc/blob/master/docs/xsd/Bilan_V06.xsd#L463
           code: node['depot'].fetch('typeDepot'), # code list
         }],
         closing_date: date_format(node['depot'].fetch('dateCloture')),
@@ -702,9 +703,11 @@ class FR_BODACC < Framework::Processor
       type: 'judgment',
       classification: [{
         code_scheme_id: 'fr_bodacc_famille',
+        # @see https://github.com/openc/open_gazettes_fr_bodacc/blob/master/docs/xsd/PCL_V13.xsd#L491
         code: hash.fetch('famille'), # code list
       }, {
         code_scheme_id: 'fr_bodacc_nature',
+        # @see https://github.com/openc/open_gazettes_fr_bodacc/blob/master/docs/xsd/PCL_V13.xsd#L509
         code: hash.fetch('nature'), # code list
       }],
       date: date_format(hash['date'], ['%e %B %Y']),
