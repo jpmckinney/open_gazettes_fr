@@ -46,7 +46,7 @@ class FR_BODACC < Framework::Processor
   end
 
   class RemoteTazFile < DataFile
-    # @note `@arg` is a `FTPClient`.
+    # @note `@arg` is an `FTPDelegator`.
     def file
       @file ||= @arg.download(name)
     end
@@ -61,7 +61,8 @@ class FR_BODACC < Framework::Processor
   end
 
   def scrape
-    Framework::FTPClient.open('echanges.dila.gouv.fr') do |ftp|
+    ftp = Framework::FTPDelegator.new(Framework::FTP.new('echanges.dila.gouv.fr'))
+    begin
       ftp.logger = @logger
       ftp.root_path = File.expand_path('echanges.dila.gouv.fr', @output_dir)
       ftp.passive = true
@@ -127,6 +128,8 @@ class FR_BODACC < Framework::Processor
           warn("unexpected file BODACC/#{remotefile}")
         end
       end
+    ensure
+      ftp.close
     end
   end
 

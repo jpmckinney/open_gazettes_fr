@@ -49,13 +49,38 @@ module Framework
     end
   end
 
-  class FTPClient < Net::FTP
+  class FTPDelegator < SimpleDelegator
+    # echanges.dila.gouv.fr sometimes returns a local IP (192.168.30.9) for the
+    # host in `#makepasv`. We can store the first host received (which we assume
+    # to be good), and return it every time. However, even with a good IP, the
+    # next command times out. So, we instead retry the entire command with a new
+    # client.
+    def method_missing(m, *args, &block)
+      begin
+        super
+      rescue Errno::ETIMEDOUT, Net::ReadTimeout => e
+        @delegate_sd_obj.error(e.message)
+        @delegate_sd_obj.close
+        __setobj__(FTP.new(*@delegate_sd_obj.initialize_arguments))
+        retry
+      end
+    end
+  end
+
+  class FTP < Net::FTP
     extend Forwardable
 
     attr_accessor :logger
     attr_accessor :root_path
+    attr_reader :initialize_arguments
 
     def_delegators :@logger, :debug, :info, :warn, :error, :fatal
+
+    def initialize(host = nil, user = nil, passwd = nil, acct = nil)
+      super
+      # Store so we can recreate an FTP client.
+      @initialize_arguments = [host, user, passwd, acct]
+    end
 
     # Downloads a remote file.
     #
