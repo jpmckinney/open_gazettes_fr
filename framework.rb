@@ -5,6 +5,7 @@ require 'net/ftp'
 
 require 'turbotlib'
 require 'faraday'
+require 'retriable'
 
 begin
   require 'faraday_middleware'
@@ -56,13 +57,14 @@ module Framework
     # next command times out. So, we instead retry the entire command with a new
     # client.
     def method_missing(m, *args, &block)
-      begin
-        super
-      rescue Errno::ETIMEDOUT, Net::ReadTimeout => e
+      on_retry = Proc.new do |exception, try, elapsed_time, next_interval|
         @delegate_sd_obj.error(e.message)
         @delegate_sd_obj.close
         __setobj__(FTP.new(*@delegate_sd_obj.initialize_arguments))
-        retry
+      end
+
+      Retriable.retriable(on: [Errno::ETIMEDOUT, Net::ReadTimeout], on_retry: on_retry) do
+        super
       end
     end
   end
