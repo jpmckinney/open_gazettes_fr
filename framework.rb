@@ -50,7 +50,7 @@ module Framework
     end
   end
 
-  class FTPDelegator < SimpleDelegator
+  class FTPDelegator < ::SimpleDelegator
     # echanges.dila.gouv.fr sometimes returns a local IP (192.168.30.9) for the
     # host in `#makepasv`. We can store the first host received (which we assume
     # to be good), and return it every time. However, even with a good IP, the
