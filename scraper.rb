@@ -47,8 +47,16 @@ class FR_BODACC < Framework::Processor
 
   class RemoteTazFile < DataFile
     # @note `@arg` is a `FTPClient`.
+    def file
+      @file ||= @arg.download(name)
+    end
+
     def path
-      @arg.download(name).path
+      file.path
+    end
+
+    def close
+      file.close
     end
   end
 
@@ -84,11 +92,13 @@ class FR_BODACC < Framework::Processor
             source_url: "ftp://echanges.dila.gouv.fr#{ftp.pwd}/#{remotefile}",
           }
 
-          Gem::Package::TarReader.new(ftp.download(remotefile)).each do |entry|
+          download = ftp.download(remotefile)
+          Gem::Package::TarReader.new(download).each do |entry|
             if entry.file?
               parse(TaredTazFile.new(entry.full_name, entry), remotefile, options)
             end
           end
+          download.close
 
         # The present year contains individual `.taz` files.
         elsif remotefile[/\A\d{4}\z/]
@@ -151,7 +161,7 @@ class FR_BODACC < Framework::Processor
       Gem::Package::TarReader.new(uncompress(file.path)).each do |entry|
         xml = entry.read
 
-        puts JSON.dump({
+        record = {
           identifier: issue_number,
           edition_id: edition_id,
           url: options[:issue_url],
@@ -167,10 +177,19 @@ class FR_BODACC < Framework::Processor
           uid: basename,
           source_url: options[:source_url],
           sample_date: retrieved_at,
-        })
+        }
+
+        unless ENV['TURBOT_QUIET']
+          puts JSON.dump(record)
+        end
       end
     else
       warn("unexpected file extension #{file.name} in BODACC/#{directory}")
+    end
+
+    # If downloaded via FTP.
+    if file.respond_to?(:close)
+      file.close
     end
   end
 
