@@ -3,7 +3,6 @@ require 'fileutils'
 require 'forwardable'
 require 'logger'
 require 'net/ftp'
-require 'net/protocol'
 
 require 'turbotlib'
 require 'faraday'
@@ -65,7 +64,11 @@ module Framework
         __setobj__(FTP.new(*@delegate_sd_obj.initialize_arguments))
       end
 
-      Retriable.retriable(on: [Errno::ETIMEDOUT, Net::ReadTimeout], on_retry: on_retry) do
+      exception_classes = Errno::ETIMEDOUT
+      if Net.const_defined?(:ReadTimeout) # Ruby 2
+        exception_classes << Net::ReadTimeout
+      end
+      Retriable.retriable(on: exception_classes, on_retry: on_retry) do
         super
       end
     end
