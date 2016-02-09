@@ -236,7 +236,7 @@ else
     Turbotlib.data_dir,
     nil,
     0,
-    'WARN',
+    ENV['TURBOT_LEVEL'] || 'WARN',
     STDERR,
   ]
 end
