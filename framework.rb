@@ -3,6 +3,7 @@ require 'fileutils'
 require 'forwardable'
 require 'logger'
 require 'net/ftp'
+require 'net/protocol'
 
 require 'turbotlib'
 require 'faraday'
