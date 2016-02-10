@@ -56,18 +56,31 @@ module Framework
     # host in `#makepasv`. We can store the first host received (which we assume
     # to be good), and return it every time. However, even with a good IP, the
     # next command times out. So, we instead retry the entire command with a new
-    # client.
+    # client, after closing the old client.
     def method_missing(m, *args, &block)
       on_retry = Proc.new do |exception, try, elapsed_time, next_interval|
-        @delegate_sd_obj.error(exception.message)
+        @delegate_sd_obj.error("#{exception.message} on #{@delegate_sd_obj.last_cmd}")
         @delegate_sd_obj.close
-        __setobj__(FTP.new(*@delegate_sd_obj.initialize_arguments))
+
+        ftp = FTP.new(*@delegate_sd_obj.initialize_args)
+        ftp.logger = @delegate_sd_obj.logger
+        ftp.root_path = @delegate_sd_obj.root_path
+        ftp.passive = true
+
+        info('login')
+        ftp.login
+
+        info("chdir #{@delegate_sd_obj.last_dir}")
+        ftp.chdir(@delegate_sd_obj.last_dir.to_s)
+
+        __setobj__(ftp)
       end
 
       exception_classes = [Errno::ETIMEDOUT, EOFError]
       if Net.const_defined?(:ReadTimeout) # Ruby 2
         exception_classes << Net::ReadTimeout
       end
+
       Retriable.retriable(on: exception_classes, on_retry: on_retry) do
         super
       end
@@ -77,17 +90,10 @@ module Framework
   class FTP < Net::FTP
     extend Forwardable
 
-    attr_accessor :logger
-    attr_accessor :root_path
-    attr_reader :initialize_arguments
+    attr_accessor :logger, :root_path
+    attr_reader :initialize_args, :last_dir, :last_cmd
 
     def_delegators :@logger, :debug, :info, :warn, :error, :fatal
-
-    def initialize(host = nil, user = nil, passwd = nil, acct = nil)
-      super
-      # Store so we can recreate an FTP client.
-      @initialize_arguments = [host, user, passwd, acct]
-    end
 
     # Downloads a remote file.
     #
@@ -107,6 +113,28 @@ module Framework
         end
         File.open(path)
       end
+    end
+
+    def initialize(host = nil, user = nil, passwd = nil, acct = nil)
+      # Store so we can recreate an FTP client.
+      @initialize_args = [host, user, passwd, acct]
+      @last_dir = Pathname.new('')
+      @last_cmd = nil
+      super
+    end
+
+    def chdir(dirname)
+      # Store so we can resume from the directory.
+      @last_dir += dirname
+      super
+    end
+
+  private
+
+    def putline(line)
+      # Store so we can report the command that errored.
+      @last_cmd = line
+      super
     end
   end
 
