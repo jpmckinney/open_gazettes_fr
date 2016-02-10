@@ -64,7 +64,7 @@ module Framework
         __setobj__(FTP.new(*@delegate_sd_obj.initialize_arguments))
       end
 
-      exception_classes = [Errno::ETIMEDOUT]
+      exception_classes = [Errno::ETIMEDOUT, EOFError]
       if Net.const_defined?(:ReadTimeout) # Ruby 2
         exception_classes << Net::ReadTimeout
       end
