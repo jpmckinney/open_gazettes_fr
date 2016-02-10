@@ -59,7 +59,7 @@ module Framework
     # client.
     def method_missing(m, *args, &block)
       on_retry = Proc.new do |exception, try, elapsed_time, next_interval|
-        @delegate_sd_obj.error(e.message)
+        @delegate_sd_obj.error(exception.message)
         @delegate_sd_obj.close
         __setobj__(FTP.new(*@delegate_sd_obj.initialize_arguments))
       end
