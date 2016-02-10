@@ -2,6 +2,7 @@ require 'delegate'
 require 'fileutils'
 require 'forwardable'
 require 'logger'
+require 'pathname'
 require 'net/ftp'
 
 require 'turbotlib'
