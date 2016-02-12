@@ -11,11 +11,6 @@
     "scraper.rb",
     "transformer.rb"
   ],
-  "transformers": [{
-    "file": "transformer.rb",
-    "data_type": "gazette-notice",
-    "identifying_fields": ["uid"]
-  }],
   "frequency": "daily",
   "manually_end_run": true,
   "publisher": {

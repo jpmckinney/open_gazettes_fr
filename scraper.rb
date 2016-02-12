@@ -1,6 +1,7 @@
 # coding: utf-8
 
 require_relative 'framework'
+require_relative 'transformer'
 
 require 'rubygems/package'
 require 'tempfile'
@@ -165,26 +166,27 @@ class FR_BODACC < Framework::Processor
         xml = entry.read
 
         record = {
-          identifier: issue_number,
-          edition_id: edition_id,
-          url: options[:issue_url],
-          other_attributes: {
-            format: format,
-            data: xml.force_encoding('iso-8859-1').encode('utf-8'), # the order of XML elements matters for PCL only
+          'identifier' => issue_number,
+          'edition_id' => edition_id,
+          'url' => options[:issue_url],
+          'other_attributes' => {
+            'format' => format,
+            'data' => xml.force_encoding('iso-8859-1').encode('utf-8'), # the order of XML elements matters for PCL only
           },
-          default_attributes: {
-            source_url: options[:source_url],
-            retrieved_at: retrieved_at,
+          'default_attributes' => {
+            'source_url' => options[:source_url],
+            'retrieved_at' => retrieved_at,
           },
           # Make primary-data-schema.json happy.
-          uid: basename,
-          source_url: options[:source_url],
-          sample_date: retrieved_at,
+          'uid' => basename,
+          'source_url' => options[:source_url],
+          'sample_date' => retrieved_at,
         }
 
-        unless ENV['TURBOT_QUIET']
-          puts JSON.dump(record)
-        end
+        # unless ENV['TURBOT_QUIET']
+        #   puts JSON.dump(record)
+        # end
+        transform(record)
       end
     else
       warn("unexpected file extension #{file.name} in BODACC/#{directory}")
