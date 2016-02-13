@@ -7,7 +7,7 @@ require 'rubygems/package'
 require 'tempfile'
 
 class FR_BODACC < Framework::Processor
-  YEAR = Env.development? && ENV['year'] || '2016'
+  YEAR = !Turbotlib.in_production? && ENV['year'] || '2016'
 
   # @see "4. REPARTITION DES ANNONCES BODACC"
   FILENAME_PATTERNS = [
@@ -158,7 +158,7 @@ class FR_BODACC < Framework::Processor
       edition_id = match[2]
       issue_number = match[3]
 
-      if Env.development? && (ENV['format'] && format != ENV['format'] || ENV['from_issue_number'] && issue_number < ENV['from_issue_number'] || ENV['to_issue_number'] && issue_number > ENV['to_issue_number'])
+      if !Turbotlib.in_production? && (ENV['format'] && format != ENV['format'] || ENV['from_issue_number'] && issue_number < ENV['from_issue_number'] || ENV['to_issue_number'] && issue_number > ENV['to_issue_number'])
         return
       end
 
@@ -230,21 +230,21 @@ class FR_BODACC < Framework::Processor
 end
 
 # We can't use keyword arguments like in Pupa until Ruby 2.
-args = if Env.development?
-  [
-    File.expand_path('data', Dir.pwd), # output_dir
-    File.expand_path('_cache', Dir.pwd), # cache_dir
-    2592000, # expires_in, 30 days
-    ENV['TURBOT_LEVEL'] || 'INFO', # level
-    STDERR, # logdev
-  ]
-else
+args = if Turbotlib.in_production?
   [
     Turbotlib.data_dir,
     nil,
     0,
     ENV['TURBOT_LEVEL'] || 'WARN',
     STDERR,
+  ]
+else
+  [
+    File.expand_path('data', Dir.pwd), # output_dir
+    File.expand_path('_cache', Dir.pwd), # cache_dir
+    2592000, # expires_in, 30 days
+    ENV['TURBOT_LEVEL'] || 'INFO', # level
+    STDERR, # logdev
   ]
 end
 

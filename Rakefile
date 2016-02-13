@@ -35,7 +35,7 @@ task :configure do
   scraper = File.read(scraper_path)
 
   File.open(scraper_path, 'w') do |f|
-    f.write(scraper.sub(/^  YEAR[^\n]+$/, "  YEAR = Env.development? && ENV['year'] || '#{year}'"))
+    f.write(scraper.sub(/^  YEAR[^\n]+$/, "  YEAR = !Turbotlib.in_production? && ENV['year'] || '#{year}'"))
   end
 end
 

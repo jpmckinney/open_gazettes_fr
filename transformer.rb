@@ -782,21 +782,21 @@ class FR_BODACC < Framework::Processor
 end
 
 # # We can't use keyword arguments like in Pupa until Ruby 2.
-# args = if Env.development?
-#   [
-#     File.expand_path('data', Dir.pwd), # output_dir
-#     File.expand_path('_cache', Dir.pwd), # cache_dir
-#     2592000, # expires_in, 30 days
-#     ENV['TURBOT_LEVEL'] || 'INFO', # level
-#     STDERR, # logdev
-#   ]
-# else
+# args = if Turbotlib.in_production?
 #   [
 #     Turbotlib.data_dir,
 #     nil,
 #     0,
 #     ENV['TURBOT_LEVEL'] || 'WARN',
 #     STDERR,
+#   ]
+# else
+#   [
+#     File.expand_path('data', Dir.pwd), # output_dir
+#     File.expand_path('_cache', Dir.pwd), # cache_dir
+#     2592000, # expires_in, 30 days
+#     ENV['TURBOT_LEVEL'] || 'INFO', # level
+#     STDERR, # logdev
 #   ]
 # end
 

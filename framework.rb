@@ -41,6 +41,7 @@ module Framework
     def self.new(cache_dir, expires_in, level, logdev)
       Faraday.new do |connection|
         connection.request :url_encoded
+        connection.request :retry
         connection.use Faraday::Response::Logger, Logger.new('faraday', level, logdev)
         if defined?(FaradayMiddleware) && cache_dir
           connection.response :caching do
@@ -105,7 +106,7 @@ module Framework
 
       path = File.join(root_path, pwd, remotefile)
 
-      if Env.development? && File.exist?(path)
+      if !Turbotlib.in_production? && File.exist?(path)
         File.open(path)
       else
         FileUtils.mkdir_p(File.dirname(path))
