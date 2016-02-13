@@ -7,8 +7,6 @@
 #     "identifying_fields": ["uid"]
 #   }],
 
-require_relative 'constants'
-
 require 'set'
 
 require 'active_support/core_ext/hash/deep_merge'
@@ -16,6 +14,8 @@ require 'active_support/core_ext/hash/slice'
 require 'nokogiri'
 require 'nori'
 require 'turbotlib'
+
+require_relative 'constants'
 
 class FR_BODACC < Turbotlib::Processor
   # def scrape
@@ -188,8 +188,7 @@ class FR_BODACC < Turbotlib::Processor
     if subnode.key?("categorie#{act_type.capitalize}")
       # NOTE These can be mapped to other values using the `CATEGORIES` constant.
       record[:about][:classification] = [{
-        code_scheme_id: 'fr_bodacc_categorie',
-        code: subnode["categorie#{act_type.capitalize}"],
+        name: subnode["categorie#{act_type.capitalize}"],
       }]
     end
 
@@ -445,9 +444,8 @@ class FR_BODACC < Turbotlib::Processor
       record[:about] = {
         type: 'filing',
         classification: [{
-          code_scheme_id: 'fr_bodacc_typeDepot',
           # @see https://github.com/openc/open_gazettes_fr_bodacc/blob/master/docs/xsd/Bilan_V06.xsd#L463
-          code: node['depot'].fetch('typeDepot'), # code list
+          name: node['depot'].fetch('typeDepot'),
         }],
         closing_date: date_format(node['depot'].fetch('dateCloture')),
       }
@@ -709,13 +707,9 @@ class FR_BODACC < Turbotlib::Processor
     value = {
       type: 'judgment',
       classification: [{
-        code_scheme_id: 'fr_bodacc_famille',
         # @see https://github.com/openc/open_gazettes_fr_bodacc/blob/master/docs/xsd/PCL_V13.xsd#L491
-        code: hash.fetch('famille'), # code list
-      }, {
-        code_scheme_id: 'fr_bodacc_nature',
         # @see https://github.com/openc/open_gazettes_fr_bodacc/blob/master/docs/xsd/PCL_V13.xsd#L509
-        code: hash.fetch('nature'), # code list
+        name: "#{hash.fetch('famille')} > #{hash.fetch('nature')}",
       }],
       date: date_format(hash['date'], ['%e %B %Y']),
     }

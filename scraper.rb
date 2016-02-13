@@ -1,11 +1,11 @@
 # coding: utf-8
 
-require_relative 'transformer'
-
 require 'rubygems/package'
 require 'tempfile'
 
 require 'turbotlib'
+
+require_relative 'transformer'
 
 class FR_BODACC < Turbotlib::Processor
   YEAR = !Turbotlib.in_production? && ENV['year'] || '2016'
