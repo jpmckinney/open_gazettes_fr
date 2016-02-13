@@ -7,7 +7,6 @@
 #     "identifying_fields": ["uid"]
 #   }],
 
-require_relative 'framework'
 require_relative 'constants'
 
 require 'set'
@@ -16,8 +15,9 @@ require 'active_support/core_ext/hash/deep_merge'
 require 'active_support/core_ext/hash/slice'
 require 'nokogiri'
 require 'nori'
+require 'turbotlib'
 
-class FR_BODACC < Framework::Processor
+class FR_BODACC < Turbotlib::Processor
   # def scrape
   #   STDIN.each_line do |line|
   #     issue = JSON.load(line)

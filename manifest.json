@@ -9,7 +9,6 @@
   ],
   "files": [
     "constants.rb",
-    "framework.rb",
     "scraper.rb",
     "transformer.rb"
   ],

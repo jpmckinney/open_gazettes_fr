@@ -1,12 +1,13 @@
 # coding: utf-8
 
-require_relative 'framework'
 require_relative 'transformer'
 
 require 'rubygems/package'
 require 'tempfile'
 
-class FR_BODACC < Framework::Processor
+require 'turbotlib'
+
+class FR_BODACC < Turbotlib::Processor
   YEAR = !Turbotlib.in_production? && ENV['year'] || '2016'
 
   # @see "4. REPARTITION DES ANNONCES BODACC"
@@ -64,19 +65,15 @@ class FR_BODACC < Framework::Processor
   end
 
   def scrape
-    ftp = Framework::FTPDelegator.new(Framework::FTP.new('echanges.dila.gouv.fr'))
+    ftp = Turbotlib::FTPDelegator.new(Turbotlib::FTP.new('echanges.dila.gouv.fr'))
     begin
       ftp.logger = @logger
       ftp.root_path = File.expand_path('echanges.dila.gouv.fr', @output_dir)
       ftp.passive = true
 
-      info('login')
       ftp.login
-
-      info('chdir BODACC')
       ftp.chdir('BODACC')
 
-      info('nlst')
       ftp.nlst.each do |remotefile|
         # Previous years are archived as `.tar` files.
         if File.extname(remotefile) == '.tar'
@@ -110,10 +107,7 @@ class FR_BODACC < Framework::Processor
             next
           end
 
-          info("chdir #{remotefile}")
           ftp.chdir(remotefile)
-
-          info('nlst')
           ftp.nlst.each do |name|
             # NOTE I can't find a media type for LZW-compressed `.taz` files,
             # which could be added as a property of the issue.
@@ -123,8 +117,6 @@ class FR_BODACC < Framework::Processor
               source_url: url,
             })
           end
-
-          info('chdir ..')
           ftp.chdir('..')
 
         elsif remotefile != 'DOCUMENTATIONS'
