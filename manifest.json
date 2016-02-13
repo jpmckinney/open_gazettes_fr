@@ -3,8 +3,10 @@
   "title": "OpenGazettes France BODACC",
   "description": "An OpenGazettes scraper of France's BODACC.",
   "language": "ruby",
-  "data_type": "primary data",
-  "identifying_fields": ["uid"],
+  "data_type": "gazette-notice",
+  "identifying_fields": [
+    "uid"
+  ],
   "files": [
     "constants.rb",
     "framework.rb",

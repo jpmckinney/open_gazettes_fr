@@ -1,9 +1,42 @@
 require 'date'
+require 'json'
 
 require 'zip'
 
 def docs
-  @docs ||= File.expand_path(File.join('docs'), Dir.pwd)
+  @docs ||= File.expand_path('docs', Dir.pwd)
+end
+
+desc 'Configures the scraper'
+task :configure do
+  manifest_path = File.expand_path('manifest.json', Dir.pwd)
+  manifest = JSON.load(File.read(manifest_path))
+
+  manifest['bot_id'] = 'open_gazettes_fr_bodacc'
+  manifest['title'] = 'OpenGazettes France BODACC'
+  manifest['description'] = "An OpenGazettes scraper of France's BODACC."
+  manifest['frequency'] = 'daily'
+
+  if ENV['year']
+    year = ENV['year']
+    manifest['bot_id'] += "_#{year}"
+    manifest['title'] += " #{year}"
+    manifest['description'].sub!(/(?=\.\z)/, " in #{year}")
+    manifest['frequency'] = 'oneoff'
+  else
+    year = Time.now.utc.year
+  end
+
+  File.open(manifest_path, 'w') do |f|
+    f.write(JSON.pretty_generate(manifest) + "\n")
+  end
+
+  scraper_path = File.expand_path('scraper.rb', Dir.pwd)
+  scraper = File.read(scraper_path)
+
+  File.open(scraper_path, 'w') do |f|
+    f.write(scraper.sub(/^  YEAR[^\n]+$/, "  YEAR = Env.development? && ENV['year'] || '#{year}'"))
+  end
 end
 
 desc 'Extracts XSD files'

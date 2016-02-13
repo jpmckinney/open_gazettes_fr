@@ -1,3 +1,23 @@
+## Deployment
+
+This repository maintains multiple bots:
+
+* `open_gazettes_fr_bodacc`: daily scraper of the current year
+* `open_gazettes_fr_bodacc_2012`: one-off scraper of 2012
+* `open_gazettes_fr_bodacc_2013`: one-off scraper of 2013
+* `open_gazettes_fr_bodacc_2014`: one-off scraper of 2014
+* `open_gazettes_fr_bodacc_2015`: one-off scraper of 2015
+
+To modify a bot, first run:
+
+    bundle exec rake configure year=2012
+
+Or for the current year:
+
+    bundle exec rake configure
+
+The run `turbot` commands as usual.
+
 ## Development
 
 The `data` directory is structured to match the output of:

@@ -7,6 +7,8 @@ require 'rubygems/package'
 require 'tempfile'
 
 class FR_BODACC < Framework::Processor
+  YEAR = Env.development? && ENV['year'] || '2016'
+
   # @see "4. REPARTITION DES ANNONCES BODACC"
   FILENAME_PATTERNS = [
     /\A(RCS-A)_BX(A)(\d{8})\.taz\z/,
@@ -80,7 +82,7 @@ class FR_BODACC < Framework::Processor
         if File.extname(remotefile) == '.tar'
           year = remotefile.match(/\ABODACC_(\d{4})\.tar\z/)[1]
 
-          if Env.development? && ENV['year'] && year != ENV['year']
+          if YEAR && year != YEAR
             next
           elsif year < '2012'
             # TODO Add support for files prior to 2011-12-07. First need to
@@ -104,7 +106,7 @@ class FR_BODACC < Framework::Processor
 
         # The present year contains individual `.taz` files.
         elsif remotefile[/\A\d{4}\z/]
-          if Env.development? && ENV['year'] && remotefile != ENV['year']
+          if YEAR && remotefile != YEAR
             next
           end
 
