@@ -38,11 +38,13 @@ You can open the SVG files in your browser.
 
 Run the scraper:
 
-    TURBOT_ENV=development ruby scraper.rb
+    ruby scraper.rb
 
 Or:
 
     turbot bots:dump
+
+Run the commands with `MORPH_URL=1` to run in production mode, which disable caching and filtering with environment variables.
 
 Change the log level:
 
@@ -54,25 +56,25 @@ See log messages only:
 
 Run a specific year:
 
-    year=2015 TURBOT_ENV=development ruby scraper.rb
+    year=2015 ruby scraper.rb
 
 Start at a specific issue number:
 
-    from_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
+    from_issue_number=20150100 ruby scraper.rb
 
 Stop at a specific issue number:
 
-    to_issue_number=20150100 TURBOT_ENV=development ruby scraper.rb
+    to_issue_number=20150100 ruby scraper.rb
 
 Run a specific format:
 
-    format=RCS-A TURBOT_ENV=development ruby scraper.rb
+    format=RCS-A ruby scraper.rb
 
 ### Transformed data
 
 Run the transformer:
 
-    cat scraper.out | TURBOT_ENV=development ruby transformer.rb
+    cat scraper.out | ruby transformer.rb
 
 ## Documentation
 
