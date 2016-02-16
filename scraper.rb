@@ -94,6 +94,8 @@ class FR_BODACC < Turbotlib::Processor
           }
 
           download = ftp.download(remotefile)
+          # TODO Consider decompressing the tar file on the filesystem, to
+          # reduce memory consumption.
           Gem::Package::TarReader.new(download).each do |entry|
             if entry.file?
               parse(TaredTazFile.new(entry.full_name, entry), remotefile, options)
