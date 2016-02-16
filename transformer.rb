@@ -27,6 +27,7 @@ class FR_BODACC < Turbotlib::Processor
       data = issue.fetch('other_attributes').fetch('data')
       xml = Nokogiri::XML(data, nil, 'utf-8')
       json = parser.parse(data.encode('iso-8859-1')).fetch(TOP_LEVEL_NODE.fetch(format))
+      @error_prefix = "#{issue['default_attributes']['source_url']} #{issue['identifier']}"
 
       identifier = json.fetch('parution')
       expected = if format == 'DIV'
@@ -34,7 +35,7 @@ class FR_BODACC < Turbotlib::Processor
       else
         issue['identifier']
       end
-      assert("expected #{expected}, got #{identifier}"){identifier == expected}
+      assert("#{@error_prefix} expected #{expected}, got #{identifier}"){identifier == expected}
 
       date_published = json.fetch('dateParution')
       case date_published
@@ -116,10 +117,16 @@ class FR_BODACC < Turbotlib::Processor
             identifier: node.fetch('numeroDepartement'),
           }
         else
-          assert("expected typeAnnonce to be 'annonce', got '#{type_raw}'"){type_raw == 'annonce'}
+          assert("#{@error_prefix} expected typeAnnonce to be 'annonce', got '#{type_raw}'"){type_raw == 'annonce'}
         end
 
-        record[:identifier] = Integer(node.fetch('numeroAnnonce'))
+        # The 2013 bot got nil instead of an Integer.
+        if node.fetch('numeroAnnonce')
+          record[:identifier] = Integer(node.fetch('numeroAnnonce'))
+        else
+          record[:identifier] = node.fetch('nojo') # required
+          error("#{@error_prefix} expected numeroAnnonce to be Integer, got nil")
+        end
         record[:uid] = node.fetch('nojo')
         record[:url] = "http://www.bodacc.fr/annonce/detail/#{record[:uid]}"
         record[:media_type] = 'text/html'
@@ -138,7 +145,7 @@ class FR_BODACC < Turbotlib::Processor
         when 'BILAN'
           parse_bilan(node, xml_node, record)
         else
-          error("unrecognized format #{format}")
+          error("#{@error_prefix} unrecognized format #{format}")
         end
 
         unless ENV['TURBOT_QUIET']
@@ -155,7 +162,7 @@ class FR_BODACC < Turbotlib::Processor
   def parse_rcs_a(node, xml_node, record)
     record[:subjects] = to_array(node.fetch('personnes').fetch('personne')).map do |subnode|
       if subnode.key?('personneMorale') && subnode.key?('personnePhysique')
-        warn("expected one of personneMorale or personnePhysique, got both")
+        warn("#{@error_prefix} expected one of personneMorale or personnePhysique, got both")
       end
 
       properties = subnode.slice('capital', 'adresse')
@@ -206,7 +213,7 @@ class FR_BODACC < Turbotlib::Processor
         # statement of accounts was submitted, presumably.
         record[:about][:statement_of_accounts] = subnode['declarationCreance']
       elsif subnode.any? # `vente` is sometimes completely empty
-        warn("expected one of opposition or declarationCreance, got none")
+        warn("#{@error_prefix} expected one of opposition or declarationCreance, got none")
       end
     end
 
@@ -291,7 +298,7 @@ class FR_BODACC < Turbotlib::Processor
       when 'personnePhysique'
         entity_type = 'person'
         if subnode.key?('nom') && subnode.key?('denominationEIRL')
-          warn("expected one of nom or denominationEIRL, got both")
+          warn("#{@error_prefix} expected one of nom or denominationEIRL, got both")
         end
         entity_properties[:name] = if subnode.key?('nom')
           {
@@ -315,7 +322,7 @@ class FR_BODACC < Turbotlib::Processor
         # 9 digits. `codeRM` and `numeroDepartement` are informational.
         if entity_properties.key?(:company_number)
           expected = subnode['numeroIdentificationRM'].gsub(' ', '')
-          assert("expected numeroIdentificationRCS (#{entity_properties[:company_number]}) to equal numeroIdentificationRM (#{expected})"){entity_properties[:company_number] == expected}
+          assert("#{@error_prefix} expected numeroIdentificationRCS (#{entity_properties[:company_number]}) to equal numeroIdentificationRM (#{expected})"){entity_properties[:company_number] == expected}
         else
           entity_properties[:jurisdiction_code] = 'fr'
           entity_properties[:company_number] = subnode.fetch('numeroIdentificationRM').gsub(' ', '')
@@ -339,12 +346,12 @@ class FR_BODACC < Turbotlib::Processor
         break
 
       else
-        error("unexpected node #{sibling.name}")
+        error("#{@error_prefix} unexpected node #{sibling.name}")
       end
     end
 
     if node.key?('jugement') && node.key?('jugementAnnule')
-      warn("expected one of jugement or jugementAnnule, got both")
+      warn("#{@error_prefix} expected one of jugement or jugementAnnule, got both")
     end
 
     # If the `update_action.type` is "cancellation", then `jugementAnnule`
@@ -371,7 +378,7 @@ class FR_BODACC < Turbotlib::Processor
   def parse_rcs_b(node, xml_node, record)
     record[:subjects] = to_array(node.fetch('personnes').fetch('personne')).map do |subnode|
       if subnode.key?('personneMorale') && subnode.key?('personnePhysique')
-        warn("expected one of personneMorale or personnePhysique, got both")
+        warn("#{@error_prefix} expected one of personneMorale or personnePhysique, got both")
       end
 
       properties = subnode.slice('numeroImmatriculation', 'nonInscrit', 'activite', 'adresse', 'siegeSocial', 'etablissementPrincipal')
@@ -384,7 +391,7 @@ class FR_BODACC < Turbotlib::Processor
     end
 
     if node.key?('modificationsGenerales') && node.key?('radiationAuRCS')
-      warn("expected one of modificationsGenerales or radiationAuRCS, got both")
+      warn("#{@error_prefix} expected one of modificationsGenerales or radiationAuRCS, got both")
     end
 
     # If the `update_action.type` is "cancellation", `modificationsGenerales`
@@ -414,7 +421,7 @@ class FR_BODACC < Turbotlib::Processor
       subnode = node['radiationAuRCS']
       if subnode
         if subnode.key?('radiationPP') && subnode.key?('radiationPM')
-          warn("expected one of radiationPP or radiationPM, got both")
+          warn("#{@error_prefix} expected one of radiationPP or radiationPM, got both")
         end
 
         # Example: http://www.bodacc.fr/annonce/detail/BXB15033000184A
@@ -424,7 +431,7 @@ class FR_BODACC < Turbotlib::Processor
         if subnode.key?('radiationPP')
           record[:about][:activity_end_date] = date_format(subnode['radiationPP'].fetch('dateCessationActivitePP'))
         else
-          assert("expected radiationPM to be 'O', got #{subnode['radiationPM'].inspect}"){subnode.fetch('radiationPM') == 'O'}
+          assert("#{@error_prefix} expected radiationPM to be 'O', got #{subnode['radiationPM'].inspect}"){subnode.fetch('radiationPM') == 'O'}
         end
         if subnode.key?('commentaire')
           record[:about][:body] = {
@@ -519,7 +526,7 @@ class FR_BODACC < Turbotlib::Processor
           return date.strftime('%Y-%m-%d')
         end
       end
-      error("expected #{value.inspect} to match one of #{patterns.inspect}")
+      error("#{@error_prefix} expected #{value.inspect} to match one of #{patterns.inspect}")
     end
   end
 
@@ -642,7 +649,7 @@ class FR_BODACC < Turbotlib::Processor
   # @return [Hash] the values of the registration
   def registration(hash, options = {})
     if hash.key?('numeroImmatriculation') && hash.key?('nonInscrit')
-      warn("expected one of numeroImmatriculation or nonInscrit, got both")
+      warn("#{@error_prefix} expected one of numeroImmatriculation or nonInscrit, got both")
     end
 
     if hash.key?('numeroImmatriculation')
@@ -667,7 +674,7 @@ class FR_BODACC < Turbotlib::Processor
       node = hash['capital']
 
       if node.key?('montantCapital') && node.key?('capitalVariable')
-        warn("expected one of montantCapital or capitalVariable, got both")
+        warn("#{@error_prefix} expected one of montantCapital or capitalVariable, got both")
       end
 
       if node.key?('montantCapital')
@@ -729,7 +736,7 @@ class FR_BODACC < Turbotlib::Processor
   def address(hash)
     if hash
       if hash.key?('france') && hash.key?('etranger')
-        warn("expected one of france or etranger, got both")
+        warn("#{@error_prefix} expected one of france or etranger, got both")
       end
 
       if hash.key?('france')
