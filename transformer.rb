@@ -622,7 +622,7 @@ class FR_BODACC < Turbotlib::Processor
         type: 'unknown',
       }
     end
-    if hash.key?('nomCommercial')
+    if hash['nomCommercial'] # can be nil
       entity_properties[:alternative_names] << {
         company_name: hash['nomCommercial'],
         type: 'trading',
